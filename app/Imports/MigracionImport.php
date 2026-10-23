@@ -13,7 +13,7 @@ class MigracionImport implements ToCollection
     /**
     * @param Collection $collection
     */
-    public function collection(Collection $rows)
+    public function collection(Collection $rows): void
     {
     $x=0;
         foreach ($rows as $row) 

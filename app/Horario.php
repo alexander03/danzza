@@ -9,7 +9,6 @@ class Horario extends Model
 {
     use SoftDeletes;
     protected $table = 'horario';
-    protected $dates = ['deleted_at'];
 
     public function clase()
     {

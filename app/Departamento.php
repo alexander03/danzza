@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 class Departamento extends Model
 {
     protected $table = 'departamento';
-    protected $dates = ['deleted_at'];
 
     /**
      * método para obtener las provincias hijas

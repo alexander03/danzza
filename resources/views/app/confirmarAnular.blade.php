@@ -11,7 +11,7 @@ if($modelo->tipodocumento_id=="4"){
 	//$abreviatura="T"; 
 }
 ?>
-{!! '<blockquote><p class="text-danger">¿Esta seguro de anular el comprobante '.utf8_encode($abreviatura.$modelo->numero).' ?</p></blockquote>' !!}
+{!! '<blockquote><p class="text-danger">¿Esta seguro de anular el comprobante '.mb_convert_encoding($abreviatura.$modelo->numero, 'UTF-8', 'ISO-8859-1').' ?</p></blockquote>' !!}
 <div class="form-group">
 	<div class="col-lg-12 col-md-12 col-sm-12 text-right">
 		{!! Form::button('<i class="fa fa-trash fa-lg"></i> '.$boton, array('class' => 'btn btn-danger btn-sm', 'id' => 'btnGuardar', 'onclick' => 'guardar(\''.$entidad.'\', this)')) !!}

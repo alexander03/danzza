@@ -10,5 +10,4 @@ class Configuracion extends Model
 {
     use SoftDeletes;
     protected $table = 'configuracion';
-    protected $dates = ['deleted_at'];
 }

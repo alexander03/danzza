@@ -10,11 +10,7 @@
 | contains the "web" middleware group. Now create something great!
 |
 */
-if (version_compare(PHP_VERSION, '7.2.0', '>=')) {
-    // Ignores notices and reports all other kinds... and warnings
-    error_reporting(E_ALL ^ E_NOTICE ^ E_WARNING);
-    error_reporting(E_ALL ^ E_WARNING); // Maybe this is enough
-}
+// El error_reporting que estaba aquí se movió a App\Providers\AppServiceProvider::boot()
 
 //Clear Cache facade value:
 Route::get('/clear-cache', function() {
@@ -222,61 +218,10 @@ Route::group(['middleware' => 'auth'], function () {
     Route::get('configuracion/eliminar/{id}/{listarluego}', 'ConfiguracionController@eliminar')->name('configuracion.eliminar');
     Route::resource('configuracion', 'ConfiguracionController', array('except' => array('show')));
 
-    /* CONCEPTOPAGO */
-    Route::post('concepto/buscar', 'ConceptoController@buscar')->name('concepto.buscar');
-    Route::get('concepto/eliminar/{id}/{listarluego}', 'ConceptoController@eliminar')->name('concepto.eliminar');
-    Route::resource('concepto', 'ConceptoController', array('except' => array('show')));
+    // Se quitaron las rutas de Concepto, Caja, Venta y los reportes de Caja/Catálogo/Detalle/Kardex:
+    // apuntaban a controladores que no existen en este proyecto y en Laravel 13 rompen "route:list".
 
-    /* CAJA */
-    Route::post('caja/buscar', 'CajaController@buscar')->name('caja.buscar');
-    Route::post('caja/buscarcontrol', 'CajaController@buscarControl')->name('caja.buscarcontrol');
-    Route::get('caja/eliminar/{id}/{listarluego}', 'CajaController@eliminar')->name('caja.eliminar');
-    Route::resource('caja', 'CajaController', array('except' => array('show')));
-    Route::get('caja/apertura', 'CajaController@apertura')->name('caja.apertura');
-    Route::post('caja/aperturar', 'CajaController@aperturar')->name('caja.aperturar');
-    Route::get('caja/cierre', 'CajaController@cierre')->name('caja.cierre');
-    Route::post('caja/cerrar', 'CajaController@cerrar')->name('caja.cerrar');
-    Route::post('caja/generarConcepto', 'CajaController@generarConcepto')->name('caja.generarconcepto');
-    Route::post('caja/generarNumero', 'CajaController@generarNumero')->name('caja.generarnumero');
-    Route::get('caja/personautocompletar/{searching}', 'CajaController@personautocompletar')->name('caja.personautocompletar');
-    Route::get('caja/pdfCierre', 'CajaController@pdfCierre')->name('caja.pdfCierre');
-    Route::get('caja/pdfDetalleCierre', 'CajaController@pdfDetalleCierre')->name('caja.pdfDetalleCierre');
-    Route::get('caja/pdfDetalleCierreF', 'CajaController@pdfDetalleCierreF')->name('caja.pdfDetalleCierreF');
-    Route::get('caja/verpdfcierre/{caja_id}', 'CajaController@pdfCierreTicket')->name('caja.verpdfcierre');
-
-
-    /* VENTA */
-    Route::post('venta/buscar', 'VentaController@buscar')->name('venta.buscar');
-    Route::get('venta/eliminar/{id}/{listarluego}', 'VentaController@eliminar')->name('venta.eliminar');
-    Route::resource('venta', 'VentaController');
-    Route::post('venta/buscarproducto', 'VentaController@buscarproducto')->name('venta.buscarproducto');
-    Route::post('venta/buscarproductobarra', 'VentaController@buscarproductobarra')->name('venta.buscarproductobarra');
-    Route::post('venta/generarNumero', 'VentaController@generarNumero')->name('venta.generarNumero');
-    Route::get('venta/personautocompletar/{searching}', 'VentaController@personautocompletar')->name('venta.personautocompletar');
-    Route::post('venta/imprimirVenta', 'VentaController@imprimirVenta')->name('venta.imprimirVenta');
-    Route::post('venta/declarar', 'VentaController@declarar')->name('venta.declarar');
-    Route::get('venta/verpdf/{id}', 'VentaController@pdfTicket')->name('venta.verpdf');
-
-
-    /* REPORTE CAJA*/
-    Route::get('cajareporte/excelCaja', 'CajareporteController@excelCaja')->name('cajareporte.excelCaja');
-    Route::resource('cajareporte', 'CajareporteController', array('except' => array('show')));
-    
     /* REPORTE COMIDA*/
     Route::get('comidareporte/excelDetalle', 'ComidareporteController@excelDetalle')->name('comidareporte.excelDetalle');
     Route::resource('comidareporte', 'ComidareporteController', array('except' => array('show')));
-
-    /* REPORTE CATALOGO PRODUCTOS */
-    Route::get('catalogoreporte/excelCatalogo', 'CatalogoreporteController@excelCatalogo')->name('catalogoreporte.excelCatalogo');
-    Route::resource('catalogoreporte', 'CatalogoreporteController', array('except' => array('show')));
-    
-    /* REPORTE DETALLE*/
-    Route::get('detallereporte/excelDetalle', 'DetallereporteController@excelDetalle')->name('detallereporte.excelDetalle');
-    Route::resource('detallereporte', 'DetallereporteController', array('except' => array('show')));
-    Route::get('detallereporte/cambiarcategoria', 'DetallereporteController@cambiarcategoria');
-    Route::get('detallereporte/cambiarproducto/{id?}', 'DetallereporteController@cambiarproducto');
-
-    /* REPORTE KARDEX*/
-    Route::get('kardexreporte/excelKardex', 'KardexreporteController@excelKardex')->name('kardexreporte.excelKardex');
-    Route::resource('kardexreporte', 'KardexreporteController', array('except' => array('show')));
 });

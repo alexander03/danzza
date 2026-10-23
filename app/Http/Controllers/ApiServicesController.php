@@ -86,7 +86,7 @@ class ApiServicesController extends Controller
         try {
             $user = auth('api')->userOrFail();
             $user->person;
-        } catch (\Tymon\JWTAuth\Exceptions\UserNotDefinedException $e) {
+        } catch (\PHPOpenSourceSaver\JWTAuth\Exceptions\UserNotDefinedException $e) {
             return response()->json(['error'=>'2','mensaje' => "Invalid Token"]);
         }
         return response()->json(['error'=>'0','user' => $user]);
@@ -102,7 +102,7 @@ class ApiServicesController extends Controller
         try {
             $user = auth('api')->userOrFail();
             auth('api')->logout();
-        } catch (\Tymon\JWTAuth\Exceptions\UserNotDefinedException $e) {
+        } catch (\PHPOpenSourceSaver\JWTAuth\Exceptions\UserNotDefinedException $e) {
             return response()->json(['error'=>'2','mensaje' => "Invalid Token"]);
         }
         return response()->json(['error'=>'0','message' => 'Realizado Correctamente']);
@@ -117,7 +117,7 @@ class ApiServicesController extends Controller
     {
         try {
             $user = auth('api')->userOrFail();
-        } catch (\Tymon\JWTAuth\Exceptions\UserNotDefinedException $e) {
+        } catch (\PHPOpenSourceSaver\JWTAuth\Exceptions\UserNotDefinedException $e) {
             return response()->json(['error'=>'2','mensaje' => "Invalid Token"]);
         }
         return $this->respondWithToken(auth('api')->refresh());
@@ -147,7 +147,7 @@ class ApiServicesController extends Controller
 
         try {
             $user = auth('api')->userOrFail();
-        } catch (\Tymon\JWTAuth\Exceptions\UserNotDefinedException $e) {
+        } catch (\PHPOpenSourceSaver\JWTAuth\Exceptions\UserNotDefinedException $e) {
             return response()->json(['error'=>'2','mensaje' => "Invalid Token"]);
         }
         
@@ -234,7 +234,7 @@ class ApiServicesController extends Controller
 
         try {
             $user = auth('api')->userOrFail();
-        } catch (\Tymon\JWTAuth\Exceptions\UserNotDefinedException $e) {
+        } catch (\PHPOpenSourceSaver\JWTAuth\Exceptions\UserNotDefinedException $e) {
             return response()->json(['error'=>'2','mensaje' => "Invalid Token"]);
         }
         
@@ -274,7 +274,7 @@ class ApiServicesController extends Controller
         try {
             $user = auth('api')->userOrFail();
             $user->person;
-        } catch (\Tymon\JWTAuth\Exceptions\UserNotDefinedException $e) {
+        } catch (\PHPOpenSourceSaver\JWTAuth\Exceptions\UserNotDefinedException $e) {
             return response()->json(['error'=>'2','mensaje' => "Invalid Token"]);
         }
 

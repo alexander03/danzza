@@ -1,0 +1,79 @@
+# Entorno de pruebas de DANZZA (PHP 8.5.12 + Laravel 13 + MySQL 8.0)
+#   docker compose up -d --build
+#   App:        http://localhost:8080
+#   phpMyAdmin: http://localhost:8081
+# La base se crea e importa desde "danzza (1).sql" solo la primera vez (volumen vacío).
+# Para volver a importar el dump: docker compose down -v && docker compose up -d
+
+services:
+  app:
+    build:
+      context: .
+      # public/ se toma de ../danzza.zip (web root del hosting), no del repositorio
+      additional_contexts:
+        webroot: ..
+    image: danzza-app:php8.5
+    container_name: danzza-app
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8080
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: danzza
+      DB_USERNAME: danzza
+      DB_PASSWORD: danzza
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+      QUEUE_CONNECTION: sync
+    volumes:
+      - app-storage:/var/www/html/storage
+
+  db:
+    image: mysql:8.0
+    container_name: danzza-db
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: danzza
+      MYSQL_USER: danzza
+      MYSQL_PASSWORD: danzza
+      TZ: America/Lima
+    ports:
+      - "3307:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+      - type: bind
+        source: "./danzza (1).sql"
+        target: /docker-entrypoint-initdb.d/01-danzza.sql
+        read_only: true
+    healthcheck:
+      test: ["CMD-SHELL", "mysql -udanzza -pdanzza -e 'SELECT 1 FROM danzza.user LIMIT 1' >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+  phpmyadmin:
+    image: phpmyadmin:5
+    container_name: danzza-pma
+    depends_on:
+      - db
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      PMA_USER: root
+      PMA_PASSWORD: root
+
+volumes:
+  db-data:
+  app-storage:

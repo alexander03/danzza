@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use Input;
+use Illuminate\Support\Facades\Request as Input;
 use Excel;
 use App\Curso;
 use App\Person;

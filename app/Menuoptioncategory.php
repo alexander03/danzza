@@ -9,7 +9,6 @@ class Menuoptioncategory extends Model
 {
 	use SoftDeletes;
     protected $table = 'menuoptioncategory';
-    protected $dates = ['deleted_at'];
 
     public function menuoptions()
 	{

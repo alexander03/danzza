@@ -9,3 +9,8 @@ Homestead.json
 Homestead.yaml
 npm-debug.log
 yarn-error.log
+/public/imports/*
+!/public/imports/.gitkeep
+# Dumps de la base de datos (contienen datos reales)
+*.sql
+!/database/migrations/mercadito.sql

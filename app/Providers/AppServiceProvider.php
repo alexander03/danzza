@@ -25,5 +25,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot()
     {
         Schema::defaultStringLength(191);
+
+        // Antes estaba en routes/web.php: ignora los warnings (variables/índices no definidos)
+        // para que no se conviertan en excepciones. Aquí también aplica con las rutas en caché.
+        error_reporting(E_ALL ^ E_WARNING);
     }
 }

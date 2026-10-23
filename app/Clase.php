@@ -9,6 +9,5 @@ class Clase extends Model
 {
 	 use SoftDeletes;
     protected $table = 'clase';
-    protected $dates = ['deleted_at'];
 
 }

@@ -1,71 +1,47 @@
-<p align="center"><img src="https://laravel.com/assets/img/components/logo-laravel.svg"></p>
+# DANZZA
 
-<p align="center">
-<a href="https://travis-ci.org/laravel/framework"><img src="https://travis-ci.org/laravel/framework.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://poser.pugx.org/laravel/framework/d/total.svg" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://poser.pugx.org/laravel/framework/v/stable.svg" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://poser.pugx.org/laravel/framework/license.svg" alt="License"></a>
-</p>
+Sistema de gestión (clientes, planes, horarios, reservas, instructores) sobre **Laravel 13** y **PHP 8.5**.
 
-## About Laravel
+## Entorno de pruebas con Docker
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Requisitos: Docker Desktop (Compose v2). El archivo `danzza (1).sql` (dump de la base actual) debe estar en la raíz del proyecto
+y `danzza.zip` (web root del hosting) en la carpeta superior.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+```bash
+docker compose up -d --build
+```
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+| Servicio   | URL / Puerto            | Credenciales               |
+|------------|-------------------------|----------------------------|
+| Aplicación | http://localhost:8080   | usuarios de la base        |
+| phpMyAdmin | http://localhost:8081   | root / root                |
+| MySQL 8.0  | localhost:3307          | danzza / danzza (BD `danzza`) |
 
-## Learning Laravel
+- El dump se importa **solo la primera vez** (volumen vacío). Para reimportarlo desde cero:
+  `docker compose down -v && docker compose up -d`
+- `APP_KEY` y `JWT_SECRET` se generan automáticamente al iniciar el contenedor si no se definen.
+- Logs de Laravel: `docker exec danzza-app tail -f storage/logs/laravel.log`
+- Pruebas: `docker run --rm -v "$PWD:/var/www/html" -w /var/www/html danzza-base:php8.5 php vendor/bin/phpunit`
+  (requiere `composer install` con dependencias de desarrollo; la imagen base se construye con
+  `docker build --target base -t danzza-base:php8.5 .`)
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Migración desde PHP 7.1 / Laravel 5.7
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains over 1100 video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost you and your team's skills by digging into our comprehensive video library.
+| Antes                        | Ahora                                   |
+|------------------------------|-----------------------------------------|
+| PHP 7.1.3 / Laravel 5.7      | PHP 8.5.12 / Laravel 13                 |
+| laravelcollective/html       | rdx/laravelcollective-html (fork compatible, mismo `Form::`) |
+| tymon/jwt-auth 1.0           | php-open-source-saver/jwt-auth 2.9 (fork mantenido, misma API `auth('api')`) |
+| maatwebsite/excel 3.1        | maatwebsite/excel 4.0 (PhpSpreadsheet 5) |
+| barryvdh/laravel-dompdf 0.8  | 3.1 (`Barryvdh\DomPDF\Facade\Pdf`)      |
+| Auth::routes() integrado     | laravel/ui 4                            |
+| fideloper/proxy, laraveles/spanish | eliminados (incluidos en Laravel / `resources/lang/es`) |
 
-## Laravel Sponsors
+Estructura: se adoptó el esqueleto de Laravel 11+ (`bootstrap/app.php` configura rutas, middleware y
+excepciones; ya no existen `app/Http/Kernel.php`, `app/Console/Kernel.php` ni los `RouteServiceProvider`/
+`EventServiceProvider`). Las rutas siguen usando `'Controlador@metodo'` con el namespace `App\Http\Controllers`.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the Laravel [Patreon page](https://patreon.com/taylorotwell).
-
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Cubet Techno Labs](https://cubettech.com)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[British Software Development](https://www.britishsoftware.co)**
-- **[Webdock, Fast VPS Hosting](https://www.webdock.io/en)**
-- **[DevSquad](https://devsquad.com)**
-- [UserInsights](https://userinsights.com)
-- [Fragrantica](https://www.fragrantica.com)
-- [SOFTonSOFA](https://softonsofa.com/)
-- [User10](https://user10.com)
-- [Soumettre.fr](https://soumettre.fr/)
-- [CodeBrisk](https://codebrisk.com)
-- [1Forge](https://1forge.com)
-- [TECPRESSO](https://tecpresso.co.jp/)
-- [Runtime Converter](http://runtimeconverter.com/)
-- [WebL'Agence](https://weblagence.com/)
-- [Invoice Ninja](https://www.invoiceninja.com)
-- [iMi digital](https://www.imi-digital.de/)
-- [Earthlink](https://www.earthlink.ro/)
-- [Steadfast Collective](https://steadfastcollective.com/)
-- [We Are The Robots Inc.](https://watr.mx/)
-- [Understand.io](https://www.understand.io/)
-- [Abdel Elrafa](https://abdelelrafa.com)
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-source software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+La carpeta `public/` no está en el repositorio: se despliega aparte como `danzza/` en el hosting.
+Para Docker, la imagen la extrae de `../danzza.zip` (contexto de build `webroot` en `docker-compose.yml`)
+y usa un `index.php` de Laravel 13; el `index.php` del hosting sigue apuntando a `../../sisdanzza/`.
+Sin Compose: `docker build --build-context webroot=.. -t danzza-app:php8.5 .`

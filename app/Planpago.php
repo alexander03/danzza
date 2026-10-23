@@ -14,7 +14,6 @@ class Planpago extends Model
 {
     use SoftDeletes;
     protected $table = 'planpago';
-    protected $dates = ['deleted_at'];
 
     public function cliente()
     {
