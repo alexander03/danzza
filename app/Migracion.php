@@ -9,5 +9,4 @@ class Migracion extends Model
 {
     //use SoftDeletes;
     protected $table = 'migracion';
-    //protected $dates = ['deleted_at'];
 }

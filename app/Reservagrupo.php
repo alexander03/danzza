@@ -13,7 +13,6 @@ class Reservagrupo extends Model
 {
     use SoftDeletes;
     protected $table = 'reservagrupo';
-    protected $dates = ['deleted_at'];
 
     public function reservas()
     {

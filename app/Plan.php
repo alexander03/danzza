@@ -9,7 +9,6 @@ class Plan extends Model
 {
 	 use SoftDeletes;
     protected $table = 'plan';
-    protected $dates = ['deleted_at'];
     
     public function clase()
     {

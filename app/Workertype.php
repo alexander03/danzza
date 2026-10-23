@@ -9,7 +9,6 @@ class Workertype extends Model
 {
     use SoftDeletes;
     protected $table = 'workertype';
-    protected $dates = ['deleted_at'];
 
     /**
      * Método para listar

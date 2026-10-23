@@ -54,7 +54,7 @@
 			<td>{{ $value->situacion }}</td>
 			<td>{{ $value->asistencia }}</td>
 			@if($value->asistencia != 'INGRESO VALIDADO')
-				<td>{!! Form::button('<div class="fas fa-check"></div> Validar Ingreso', array('onclick' => 'modal (\''.URL::route($ruta["confirmar"], array($value->id, 'listar'=>'SI')).'\', \''.$titulo_confirmar.'\', this);', 'class' => 'btn btn-sm btn-outline-warning')) !!}</td>
+				<td>{!! Form::button('<div class="fas fa-check"></div> Validar Ingreso', array('onclick' => 'modal (\''.URL::route($ruta["confirmar"], array($value->id, 'SI')).'\', \''.$titulo_confirmar.'\', this);', 'class' => 'btn btn-sm btn-outline-warning')) !!}</td>
 			@else
 				<td> - </td>
 			@endif

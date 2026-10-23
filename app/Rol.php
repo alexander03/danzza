@@ -9,5 +9,4 @@ class Rol extends Model
 {
 	 use SoftDeletes;
     protected $table = 'rol';
-    protected $dates = ['deleted_at'];
 }

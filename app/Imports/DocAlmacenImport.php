@@ -19,7 +19,7 @@ class DocAlmacenImport implements ToCollection
     /**
     * @param Collection $collection
     */
-    public function collection(Collection $rows){
+    public function collection(Collection $rows): void {
     	date_default_timezone_set("America/Lima");
     	$x=0;
 		$user        = Auth::User();

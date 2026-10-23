@@ -18,7 +18,7 @@ class CatalogoExport implements FromView
     protected $precioventa;
     protected $stock;
 
-    public function __construct($sucursal=null, $categoria, $subcategoria, $marca , $unidad ,$precioventa ,$stock)
+    public function __construct($sucursal, $categoria, $subcategoria, $marca , $unidad ,$precioventa ,$stock)
     {
        
         $this->sucursal = $sucursal;

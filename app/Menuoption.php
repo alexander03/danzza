@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 class Menuoption extends Model
 {
     protected $table = 'menuoption';
-    protected $dates = ['deleted_at'];
 
 	public function menuoptioncategory()
 	{

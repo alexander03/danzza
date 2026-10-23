@@ -9,7 +9,6 @@ class Comida extends Model
 {
     use SoftDeletes;
     protected $table = 'comida';
-    protected $dates = ['deleted_at'];
 
     public function persona()
     {

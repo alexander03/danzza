@@ -27,8 +27,8 @@ function generarArbol($idcategoria, $nivel, $asignados){
 			@else
 				{!! Form::label('condicion'.$opcionmenu->id, $opcionmenu->name) !!}
 			@endif
-			{!! Form::checkbox('condicion[]', '', Input::old('condicion'.$opcionmenu->id, true), array('id' => 'condicion'.$opcionmenu->id,'class' => 'pull-right', 'onchange' => 'cambiarEstado(this, \''.'estado'.$opcionmenu->id.'\');')) !!}
-			{!! Form::hidden('estado[]', Input::old('estado'.$opcionmenu->id, 'H'), array('id' => 'estado'.$opcionmenu->id)) !!}
+			{!! Form::checkbox('condicion[]', '', old('condicion'.$opcionmenu->id, true), array('id' => 'condicion'.$opcionmenu->id,'class' => 'pull-right', 'onchange' => 'cambiarEstado(this, \''.'estado'.$opcionmenu->id.'\');')) !!}
+			{!! Form::hidden('estado[]', old('estado'.$opcionmenu->id, 'H'), array('id' => 'estado'.$opcionmenu->id)) !!}
 			{!! Form::hidden('idopcionmenu[]', $opcionmenu->id, array('id' => 'idopcionmenu'.$opcionmenu->id)) !!}
 			{!! '<br>' !!}
 		@else
@@ -38,8 +38,8 @@ function generarArbol($idcategoria, $nivel, $asignados){
 			@else
 				{!! Form::label('condicion'.$opcionmenu->id, $opcionmenu->name) !!}
 			@endif
-			{!! Form::checkbox('condicion[]', '', Input::old('condicion'.$opcionmenu->id, false), array('id' => 'condicion'.$opcionmenu->id,'class' => 'pull-right', 'onchange' => 'cambiarEstado(this, \''.'estado'.$opcionmenu->id.'\');')) !!}
-			{!! Form::hidden('estado[]', Input::old('estado'.$opcionmenu->id, 'I'), array('id' => 'estado'.$opcionmenu->id)) !!}
+			{!! Form::checkbox('condicion[]', '', old('condicion'.$opcionmenu->id, false), array('id' => 'condicion'.$opcionmenu->id,'class' => 'pull-right', 'onchange' => 'cambiarEstado(this, \''.'estado'.$opcionmenu->id.'\');')) !!}
+			{!! Form::hidden('estado[]', old('estado'.$opcionmenu->id, 'I'), array('id' => 'estado'.$opcionmenu->id)) !!}
 			{!! Form::hidden('idopcionmenu[]', $opcionmenu->id, array('id' => 'idopcionmenu'.$opcionmenu->id)) !!}
 			{!! '<br>' !!}
 		@endif

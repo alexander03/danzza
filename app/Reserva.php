@@ -9,7 +9,6 @@ class Reserva extends Model
 {
     use SoftDeletes;
     protected $table = 'reserva';
-    protected $dates = ['deleted_at'];
 
     public function sucursal()
     {
