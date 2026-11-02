@@ -66,6 +66,19 @@
 									@endforeach
 								</div>
 							</div>
+							{{-- Fechas + "Solo": Día = la vigencia del horario cubre lo buscado; Rango = la vigencia completa está dentro del rango --}}
+							<div class="col-lg-2 col-md-2  form-group">
+								{!! Form::label('solo', 'Seleccione') !!}
+								{!! Form::select('solo', array('DIA' => 'Día', 'RANGO' => 'Rango'), 'DIA', array('class' => 'form-control ', 'id' => 'solo', 'onchange' => 'buscar(\''.$entidad.'\')')) !!}
+							</div>
+							<div class="col-lg-2 col-md-2  form-group">
+								{!! Form::label('fechadesde', 'Desde') !!}
+								{!! Form::date('fechadesde', \Carbon\Carbon::today()->format('Y-m-d'), array('class' => 'form-control ', 'id' => 'fechadesde', 'onchange' => 'buscar(\''.$entidad.'\')')) !!}
+							</div>
+							<div class="col-lg-2 col-md-2  form-group">
+								{!! Form::label('fechahasta', 'Hasta') !!}
+								{!! Form::date('fechahasta', \Carbon\Carbon::today()->format('Y-m-d'), array('class' => 'form-control ', 'id' => 'fechahasta', 'onchange' => 'buscar(\''.$entidad.'\')')) !!}
+							</div>
 							<div class="col-lg-2 col-md-2  form-group" style="min-width: 150px;">
 								{!! Form::label('nombre', 'Filas a mostrar') !!}
 								{!! Form::selectRange('filas', 1, 30, 10, array('class' => 'form-control input-xs', 'onchange' => 'buscar(\''.$entidad.'\')')) !!}

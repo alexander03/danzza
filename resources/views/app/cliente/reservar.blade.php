@@ -37,7 +37,11 @@
     // Cada reserva consume 1 crédito (en un rango, 1 por día)
     $creditos = (int) $cliente->creditos;
     // Sin plan activo o sin créditos solo puede ver sedes y horarios (pasos 1 y 2), no elegir lugar
-    $puedeReservar = $planActivo && $creditos >= 1;
+    // Igual con el plan congelado o vencido (el usuario especial 39 no tiene esta restricción)
+    $congelamiento = \App\Congelamiento::actual($cliente->id);
+    $congelado = $congelamiento && \Carbon\Carbon::parse($congelamiento->fechainicio)->lte(\Carbon\Carbon::today());
+    $bloqueoPlan = ($planActivo && $cliente->id != 39) ? \App\Congelamiento::bloqueoReserva($cliente, \Carbon\Carbon::today()->format('Y-m-d')) : null;
+    $puedeReservar = $planActivo && $creditos >= 1 && !$bloqueoPlan;
     $sedes = Sucursal::all();
     $ruta = function ($nombre) {
         return Route::has($nombre) ? route($nombre) : '#';
@@ -435,6 +439,23 @@
             </a>
         </div>
 
+    @elseif ($congelado)
+
+        <div class="card-dz" style="margin-bottom: 20px;">
+            <p><b>Tu plan está congelado</b> desde el {{ \Carbon\Carbon::parse($congelamiento->fechainicio)->format('d/m/Y') }}.
+               Puedes ver los horarios, pero no reservar hasta que se descongele.
+               Tus días y tus clases se conservan.</p>
+        </div>
+
+    @elseif ($bloqueoPlan)
+
+        <div class="card-dz" style="margin-bottom: 20px;">
+            <p><b>Tu plan venció.</b> Renuévalo o elige otro plan para seguir reservando.</p>
+            <a href="{{ $ruta('cliente.planes') }}" class="btn-dz">
+                <i class="fa-solid fa-arrows-rotate"></i> Ver planes
+            </a>
+        </div>
+
     @elseif ($creditos < 1)
 
         <div class="card-dz" style="margin-bottom: 20px;">
@@ -602,7 +623,8 @@ $(function () {
 
     // Sin plan activo o sin créditos: solo se ven sedes y horarios; el botón del horario lleva a Planes
     var puedeReservar = {{ $puedeReservar ? 'true' : 'false' }};
-    var textoSinPlan = {!! json_encode($planActivo ? 'Renueva tu plan para reservar' : 'Activa tu plan para reservar') !!};
+    var planCongelado = {{ $congelado ? 'true' : 'false' }};
+    var textoSinPlan = {!! json_encode($congelado ? 'Plan congelado' : ($planActivo ? 'Renueva tu plan para reservar' : 'Activa tu plan para reservar')) !!};
 
     var reserva = {
         modo: 'dia',
@@ -770,6 +792,10 @@ $(function () {
                         .prop('disabled', libres <= 0)
                         .on('click', function () {
                             // No puede pasar al paso 3 (lugar) sin plan activo o sin créditos
+                            if (planCongelado) {
+                                toastr.warning('Tu plan está congelado. No puedes reservar hasta que se descongele.');
+                                return;
+                            }
                             if (!puedeReservar) {
                                 window.location.href = urls.planes;
                                 return;

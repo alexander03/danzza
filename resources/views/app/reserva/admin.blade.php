@@ -47,12 +47,21 @@
 								{!! Form::select('instructor', $cboInstructor, '', array('class' => 'form-control ', 'id' => 'instructor', 'onchange' => 'filtrarHorarios()')) !!}
 							</div>
 							<div class="col-lg-2 col-md-2  form-group">
-								{!! Form::label('horario', 'Horario') !!}
-								{!! Form::select('horario', $cboHorario, '', array('class' => 'form-control ', 'id' => 'horario', 'onchange' => 'buscar(\''.$entidad.'\')')) !!}
-							</div>
-							<div class="col-lg-2 col-md-2  form-group">
 								{!! Form::label('clase', 'Clase') !!}
 								{!! Form::select('clase', $cboClase, '', array('class' => 'form-control ', 'id' => 'clase', 'onchange' => 'filtrarHorarios()')) !!}
+							</div>
+							{{-- Rango de fechas: por defecto de hoy a 7 días --}}
+							<div class="col-lg-2 col-md-2  form-group">
+								{!! Form::label('fechadesde', 'Desde') !!}
+								{!! Form::date('fechadesde', \Carbon\Carbon::today()->format('Y-m-d'), array('class' => 'form-control ', 'id' => 'fechadesde', 'onchange' => 'filtrarHorarios()')) !!}
+							</div>
+							<div class="col-lg-2 col-md-2  form-group">
+								{!! Form::label('fechahasta', 'Hasta') !!}
+								{!! Form::date('fechahasta', \Carbon\Carbon::today()->addDays(7)->format('Y-m-d'), array('class' => 'form-control ', 'id' => 'fechahasta', 'onchange' => 'filtrarHorarios()')) !!}
+							</div>
+							<div class="col-lg-2 col-md-2  form-group">
+								{!! Form::label('horario', 'Horario') !!}
+								{!! Form::select('horario', $cboHorario, '', array('class' => 'form-control ', 'id' => 'horario', 'onchange' => 'buscar(\''.$entidad.'\')')) !!}
 							</div>
 							<div class="col-lg-2 col-md-2  form-group" style="min-width: 150px;">
 								{!! Form::label('filas', 'Filas a mostrar') !!}
@@ -96,7 +105,7 @@
 
   
 <script>
-	// Recarga el filtro de Horario según Sede / Instructor / Clase y luego busca
+	// Recarga el filtro de Horario según Sede / Instructor / Clase / rango de fechas y luego busca
 	function filtrarHorarios() {
 		var form = $(IDFORMBUSQUEDA + '{{ $entidad }}');
 		var $horario = form.find('#horario');
@@ -107,7 +116,9 @@
 			data: {
 				sucursal: form.find('#sucursal').val(),
 				instructor: form.find('#instructor').val(),
-				clase: form.find('#clase').val()
+				clase: form.find('#clase').val(),
+				fechadesde: form.find('#fechadesde').val(),
+				fechahasta: form.find('#fechahasta').val()
 			},
 			dataType: 'json',
 			success: function (horarios) {

@@ -237,13 +237,13 @@ class WebServicesController extends Controller
             $person->nombres = strtoupper($request->input('nombres'));
             $person->documento = strtoupper($request->input('documento'));
             $person->direccion = strtoupper($request->input('direccion'));
-            $person->creditos = strtoupper($request->input('creditos')) + 0;
+            $person->creditos = 0;
             $person->fechanacimiento = strtoupper($request->input('fechanacimiento'));
             $person->dniapoderado = strtoupper($request->input('dniapoderado'));
             $person->correo = strtoupper($request->input('correo'));
-            $person->plan_id = strtoupper($request->input('plan_id')) + 0;
+            $person->plan_id = 0;
             $person->celular = strtoupper($request->input('celular'));
-            $person->clases = strtoupper($request->input('clases')) + 0;
+            $person->clases = 0;
             $person->situacion = strtoupper($request->input('situacion'));
             $person->sucursal_id = $request->input('sucursal_id');
             $person->save();

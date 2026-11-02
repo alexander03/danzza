@@ -143,10 +143,10 @@ class UsuarioController extends Controller
             'usertype_id.required' => 'Debe seleccionar un tipo de usuario.',
             'person_id.required' => 'Debe seleccionar una persona.',
             );
-        if(ASIGNAR_CAJA == "S" && $request->input('usertype_id') == '2'){
+        /*if(ASIGNAR_CAJA == "S" && $request->input('usertype_id') == '2'){
             $reglas["caja_id"] = "required|integer|exists:caja,id,deleted_at,NULL";
             $mensajes["caja_id.required"] = "Debe asignar una caja al usuario.";
-        }
+        }*/
         $validacion = Validator::make($request->all(),$reglas,$mensajes);
         if ($validacion->fails()) {
             return $validacion->messages()->toJson();
@@ -231,10 +231,10 @@ class UsuarioController extends Controller
         if ($esPersonal) {
             $reglas['person_id'] = 'required|integer|exists:person,id,deleted_at,NULL';
         }
-        if(ASIGNAR_CAJA == "S" && $request->input('usertype_id') == '2'){
+        /*if(ASIGNAR_CAJA == "S" && $request->input('usertype_id') == '2'){
             $reglas["caja_id"] = "required|integer|exists:caja,id,deleted_at,NULL";
             $mensajes["caja_id.required"] = "Debe asignar una caja al usuario.";
-        }
+        }*/
         $validacion = Validator::make($request->all(),$reglas,$mensajes);
         if ($validacion->fails()) {
             return $validacion->messages()->toJson();

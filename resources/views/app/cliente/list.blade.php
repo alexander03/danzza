@@ -28,7 +28,14 @@
 			<td>{{ optional($value->plan)->nombre ?? '-' }}</td>
 			<!--td>{{ $value->clases }}</td-->
 			<td>{{ $value->creditos }}</td>
-			<td>{{ $value->situacion }}</td>
+			<?php $congelado = isset($congelamientos) ? $congelamientos->get($value->id) : null; ?>
+			<td>
+				{{ $value->situacion }}
+				@if($congelado)
+					<br><span class="badge badge-info">CONGELADO</span>
+					<br><small>Desde {{ \Carbon\Carbon::parse($congelado->fechainicio)->format('d/m/Y') }}</small>
+				@endif
+			</td>
 			<!--td>{{ optional($value->sucursal)->nombre ?? '-' }}</td-->
 			<?php
 			// Pago de plan en validación (como máximo uno por cliente) y último pago validado
@@ -56,6 +63,14 @@
 					{!! Form::button('<div class="fas fa-bolt"></div> Asignar Plan', array('onclick' => 'modal (\''.URL::route($ruta["asignarplan"], array($value->id, 'SI')).'\', \''.$titulo_asignarplan.'\', this);', 'class' => 'btn btn-sm btn-outline-warning')) !!}
 					<br><small class="text-muted">{{ $asignables[$value->id] }}</small>
 				</td>
+			@else
+				<td> - </td>
+			@endif
+			{{-- Congelar / Descongelar: solo administrador y clientes con plan --}}
+			@if(!empty($esAdmin) && $congelado)
+				<td>{!! Form::button('<div class="fas fa-fire"></div> Descongelar', array('onclick' => 'modal (\''.URL::route($ruta["descongelar"], array($value->id, 'SI')).'\', \'Descongelar Plan\', this);', 'class' => 'btn btn-sm btn-outline-info')) !!}</td>
+			@elseif(!empty($esAdmin) && $value->plan_id > 0 && $value->plan && !$pagoPendiente)
+				<td>{!! Form::button('<div class="fas fa-snowflake"></div> Congelar', array('onclick' => 'modal (\''.URL::route($ruta["congelar"], array($value->id, 'SI')).'\', \'Congelar Plan\', this);', 'class' => 'btn btn-sm btn-outline-info')) !!}</td>
 			@else
 				<td> - </td>
 			@endif

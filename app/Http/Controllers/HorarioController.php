@@ -83,6 +83,33 @@ class HorarioController extends Controller
             list($horaInicio, $horaFin) = explode('|', $hora, 2);
             $resultado->where('horainicio', '=', $horaInicio)->where('horafin', '=', $horaFin);
         }
+        // Rango de fechas según "Solo":
+        //  DIA   -> la vigencia del horario cubre todo lo buscado (Vigente desde <= Desde y Vigente hasta >= Hasta);
+        //           sin fecha de inicio/fin = abierto por ese lado
+        //  RANGO -> la vigencia completa del horario está dentro del rango (Vigente desde >= Desde y Vigente hasta <= Hasta);
+        //           sin esas fechas no aparece
+        $fechaDesde = Libreria::getParam($request->input('fechadesde'));
+        $fechaHasta = Libreria::getParam($request->input('fechahasta'));
+        $solo       = Libreria::getParam($request->input('solo'));
+        if ($solo == 'RANGO') {
+            if ($fechaDesde != "") {
+                $resultado->whereNotNull('fechainicio')->where('fechainicio', '>=', $fechaDesde);
+            }
+            if ($fechaHasta != "") {
+                $resultado->whereNotNull('fechafin')->where('fechafin', '<=', $fechaHasta);
+            }
+        } else {
+            // Con una sola fecha, se busca ese día
+            $inicioBusqueda = $fechaDesde != "" ? $fechaDesde : $fechaHasta;
+            $finBusqueda    = $fechaHasta != "" ? $fechaHasta : $fechaDesde;
+            if ($inicioBusqueda != "") {
+                $resultado->where(function ($q) use ($inicioBusqueda) {
+                    $q->whereNull('fechainicio')->orWhere('fechainicio', '<=', $inicioBusqueda);
+                })->where(function ($q) use ($finBusqueda) {
+                    $q->whereNull('fechafin')->orWhere('fechafin', '>=', $finBusqueda);
+                });
+            }
+        }
         // Vigencia respecto a hoy (sin fecha de inicio/fin = rango abierto por ese lado)
         $vigencia = Libreria::getParam($request->input('vigencia'));
         $hoy      = \Carbon\Carbon::today()->format('Y-m-d');

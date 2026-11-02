@@ -118,9 +118,9 @@
 		</div>
 		<div class="col-md-3 col-lg-3">
 			<div class="form-group">
-				{!! Form::label('usuario', 'Ingrese Correo:', array('class' => 'col-lg-12 col-md-12 col-sm-12 control-label')) !!}
+				{!! Form::label('usuario', 'Ingrese usuario:', array('class' => 'col-lg-12 col-md-12 col-sm-12 control-label')) !!}
 				<div class="col-lg-12 col-md-12 col-sm-12">
-					{!! Form::text('usuario', null, array('class' => 'form-control input-xs', 'id' => 'usuario', 'placeholder' => 'Ingrese correo')) !!}
+					{!! Form::text('usuario', null, array('class' => 'form-control input-xs', 'id' => 'usuario', 'placeholder' => 'Ingrese usuario')) !!}
 				</div>
 			</div>
 		</div>

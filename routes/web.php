@@ -1,4 +1,4 @@
-<?php
+avi<?php
 
 /*
 |--------------------------------------------------------------------------
@@ -153,6 +153,11 @@ Route::group(['middleware' => 'auth'], function () {
     /* Asignar plan a un cliente sin plan (administrador): registra el pago PENDIENTE */
     Route::get('cliente/asignarplan/{id}/{listarluego}', 'ClienteController@asignarPlan')->name('cliente.asignarplan');
     Route::post('cliente/asignarplan/{id}', 'ClienteController@asignarPlanStore')->name('cliente.asignarplan.store');
+    /* Congelar / descongelar el plan de un cliente (administrador) */
+    Route::get('cliente/congelar/{id}/{listarluego}', 'ClienteController@congelar')->name('cliente.congelar');
+    Route::post('cliente/congelar/{id}', 'ClienteController@congelarStore')->name('cliente.congelar.store');
+    Route::get('cliente/descongelar/{id}/{listarluego}', 'ClienteController@descongelar')->name('cliente.descongelar');
+    Route::post('cliente/descongelar/{id}', 'ClienteController@descongelarStore')->name('cliente.descongelar.store');
     Route::get('cliente/perfil', 'ClienteController@perfil')->name('cliente.perfil');
     Route::post('cliente/perfil', 'ClienteController@perfilStore')->name('cliente.perfil.store');
     Route::post('cliente/perfil/password', 'ClienteController@perfilPassword')->name('cliente.perfil.password');

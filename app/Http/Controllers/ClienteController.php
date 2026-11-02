@@ -15,6 +15,7 @@ use App\Horario;
 use App\Reserva;
 use App\Reservagrupo;
 use App\Planpago;
+use App\Congelamiento;
 use App\Configuracion;
 use App\Librerias\Libreria;
 use App\Http\Controllers\Controller;
@@ -39,6 +40,8 @@ class ClienteController extends Controller
         'index'  => 'cliente.index',
         'validarpago' => 'cliente.validarpago',
         'asignarplan' => 'cliente.asignarplan',
+        'congelar'    => 'cliente.congelar',
+        'descongelar' => 'cliente.descongelar',
     );
     protected $tituloAsignarPlan = 'Asignar Plan';
 
@@ -113,7 +116,7 @@ class ClienteController extends Controller
         $cabecera[]       = array('valor' => 'Situacion', 'numero' => '1');
         //$cabecera[]       = array('valor' => 'Sede', 'numero' => '1');
         $cabecera[]       = array('valor' => 'Pago plan', 'numero' => '1');
-        $cabecera[]       = array('valor' => 'Operaciones', 'numero' => '3');
+        $cabecera[]       = array('valor' => 'Operaciones', 'numero' => '4');
 
         $titulo_modificar = $this->tituloModificar;
         $titulo_eliminar  = $this->tituloEliminar;
@@ -140,7 +143,11 @@ class ClienteController extends Controller
                     }
                 }
             }
-            return view($this->folderview . '.list')->with(compact('lista', 'paginacion', 'inicio', 'fin', 'entidad', 'cabecera', 'titulo_modificar', 'titulo_eliminar', 'ruta', 'titulo_validarpago', 'titulo_asignarplan', 'esAdmin', 'asignables'));
+            // Congelamientos en curso de los clientes de esta página
+            $congelamientos = Congelamiento::whereIn('cliente_id', collect($lista->items())->pluck('id')->all())
+                ->where('situacion', '=', 'ACTUAL')
+                ->get()->keyBy('cliente_id');
+            return view($this->folderview . '.list')->with(compact('lista', 'paginacion', 'inicio', 'fin', 'entidad', 'cabecera', 'titulo_modificar', 'titulo_eliminar', 'ruta', 'titulo_validarpago', 'titulo_asignarplan', 'esAdmin', 'asignables', 'congelamientos'));
         }
         return view($this->folderview . '.list')->with(compact('lista', 'entidad'));
     }
@@ -249,6 +256,204 @@ class ClienteController extends Controller
     private function puedeAsignarPlan($cliente)
     {
         return $this->sinPlan($cliente) || !is_null($this->motivoRenovacion($cliente));
+    }
+
+    /**
+     * (Administrador) Modal para congelar el plan de un cliente
+     */
+    public function congelar($id, $listarLuego)
+    {
+        if (!$this->esAdminLogueado()) {
+            return 'No tienes permiso para congelar planes.';
+        }
+        $cliente = Cliente::find($id);
+        if (!$cliente) {
+            return 'El cliente no existe.';
+        }
+        $listar = "NO";
+        if (!is_null(Libreria::obtenerParametro($listarLuego))) {
+            $listar = $listarLuego;
+        }
+        $hoy      = \Carbon\Carbon::today()->format('Y-m-d');
+        $error    = $this->errorCongelar($cliente, $hoy);
+        $pago     = Congelamiento::pagoVigente($cliente);
+        $entidad  = 'Cliente';
+        $formData = array('route' => array('cliente.congelar.store', $cliente->id), 'method' => 'POST', 'class' => 'form-horizontal', 'id' => 'formMantenimiento' . $entidad, 'autocomplete' => 'off');
+        $boton    = 'Congelar';
+        return view($this->folderview . '.congelar')->with(compact('cliente', 'pago', 'error', 'hoy', 'formData', 'entidad', 'boton', 'listar'));
+    }
+
+    /** Motivo por el que no se puede congelar el plan desde esa fecha, o null si se puede */
+    private function errorCongelar($cliente, $fecha)
+    {
+        if ($this->sinPlan($cliente)) {
+            return 'El cliente no tiene plan.';
+        }
+        if (Congelamiento::actual($cliente->id)) {
+            return 'El plan del cliente ya está congelado.';
+        }
+        if ($this->pagoPlanPendiente($cliente->id)) {
+            return 'El cliente tiene un pago de plan por validar. Valídalo o recházalo antes de congelar.';
+        }
+        $pago = Congelamiento::pagoVigente($cliente);
+        if (!$pago) {
+            return 'El plan del cliente no tiene un pago validado.';
+        }
+        if ($pago->fechavencimiento && \Carbon\Carbon::parse($pago->fechavencimiento)->format('Y-m-d') < $fecha) {
+            return 'El plan del cliente venció el ' . \Carbon\Carbon::parse($pago->fechavencimiento)->format('d/m/Y') . '.';
+        }
+        return null;
+    }
+
+    /**
+     * (Administrador) Congela el plan: cancela las reservas desde la fecha de inicio cuya clase aún
+     * no empezó y devuelve sus créditos. El congelamiento sigue hasta que se presione "Descongelar".
+     */
+    public function congelarStore(Request $request, $id)
+    {
+        if (!$this->esAdminLogueado()) {
+            return json_encode(array('cliente' => array('No tienes permiso para congelar planes.')));
+        }
+        $cliente = Cliente::find($id);
+        if (!$cliente) {
+            return json_encode(array('cliente' => array('El cliente no existe.')));
+        }
+        $reglas = array(
+            'fechainicio' => 'required|date_format:Y-m-d|after_or_equal:today',
+            'motivo'      => 'nullable|max:200',
+        );
+        $mensajes = array(
+            'fechainicio.required'       => 'Debe ingresar la fecha de inicio',
+            'fechainicio.date_format'    => 'La fecha de inicio no es válida',
+            'fechainicio.after_or_equal' => 'La fecha de inicio no puede ser anterior a hoy',
+            'motivo.max'                 => 'El motivo es demasiado largo',
+        );
+        $validacion = Validator::make($request->all(), $reglas, $mensajes);
+        if ($validacion->fails()) {
+            return $validacion->messages()->toJson();
+        }
+        $fechaInicio = $request->input('fechainicio');
+        $error = $this->errorCongelar($cliente, $fechaInicio);
+        if ($error) {
+            return json_encode(array('cliente' => array($error)));
+        }
+
+        $pago  = Congelamiento::pagoVigente($cliente);
+        $error = DB::transaction(function () use ($request, $cliente, $pago, $fechaInicio) {
+            $congelamiento = new Congelamiento();
+            $congelamiento->cliente_id  = $cliente->id;
+            $congelamiento->planpago_id = $pago->id;
+            $congelamiento->fechainicio = $fechaInicio;
+            $congelamiento->situacion   = 'ACTUAL';
+            $congelamiento->motivo      = $request->input('motivo');
+            $congelamiento->usuario_id  = auth()->user()->id;
+            $congelamiento->save();
+
+            $this->cancelarReservasDesde($cliente->id, $fechaInicio);
+        });
+        return is_null($error) ? "OK" : $error;
+    }
+
+    /** Cancela las reservas del cliente desde esa fecha cuya clase no empezó y devuelve 1 crédito por cada una */
+    private function cancelarReservasDesde($clienteId, $fecha)
+    {
+        $ahora    = \Carbon\Carbon::now();
+        $reservas = Reserva::where('cliente_id', '=', $clienteId)
+            ->where('fecha', '>=', $fecha)
+            ->where('situacion', '=', 'RESERVADO')
+            ->whereNull('deleted_at')
+            ->get();
+        $cancelados = 0;
+        $grupos     = array();
+        foreach ($reservas as $reserva) {
+            $horario = Horario::find($reserva->horario_id);
+            $inicio  = \Carbon\Carbon::parse(\Carbon\Carbon::parse($reserva->fecha)->format('Y-m-d') . ' ' . $horario->horainicio);
+            if ($reserva->asistencia == 'INGRESO VALIDADO' || $inicio->lte($ahora)) {
+                continue;
+            }
+            $reserva->deleted_at = \Carbon\Carbon::now();
+            $reserva->save();
+            $cancelados++;
+            if ($reserva->reservagrupo_id) {
+                $grupos[$reserva->reservagrupo_id] = true;
+            }
+        }
+        if ($cancelados > 0) {
+            Cliente::where('id', '=', $clienteId)->increment('creditos', $cancelados);
+        }
+        // Un rango sin días restantes queda cancelado (mismo criterio que cancelarRango)
+        foreach (array_keys($grupos) as $grupoId) {
+            if (!Reserva::where('reservagrupo_id', '=', $grupoId)->whereNull('deleted_at')->exists()) {
+                $grupo = Reservagrupo::find($grupoId);
+                $grupo->situacion  = 'CANCELADO';
+                $grupo->deleted_at = \Carbon\Carbon::now();
+                $grupo->save();
+            }
+        }
+    }
+
+    /** Días que suma el congelamiento si termina hoy (0 si aún no empezó) */
+    private function diasCongelados($congelamiento)
+    {
+        $inicio = \Carbon\Carbon::parse($congelamiento->fechainicio)->startOfDay();
+        $hoy    = \Carbon\Carbon::today();
+        return $inicio->gte($hoy) ? 0 : $inicio->diffInDays($hoy);
+    }
+
+    /**
+     * (Administrador) Modal para descongelar el plan de un cliente
+     */
+    public function descongelar($id, $listarLuego)
+    {
+        if (!$this->esAdminLogueado()) {
+            return 'No tienes permiso para descongelar planes.';
+        }
+        $cliente       = Cliente::find($id);
+        $congelamiento = $cliente ? Congelamiento::actual($cliente->id) : null;
+        if (!$congelamiento) {
+            return 'El cliente no tiene un plan congelado.';
+        }
+        $listar = "NO";
+        if (!is_null(Libreria::obtenerParametro($listarLuego))) {
+            $listar = $listarLuego;
+        }
+        $pago       = $congelamiento->planpago;
+        $dias       = $this->diasCongelados($congelamiento);
+        $vencimientoNuevo = ($pago && $pago->fechavencimiento)
+            ? \Carbon\Carbon::parse($pago->fechavencimiento)->addDays($dias)->format('d/m/Y')
+            : null;
+        $entidad  = 'Cliente';
+        $formData = array('route' => array('cliente.descongelar.store', $cliente->id), 'method' => 'POST', 'class' => 'form-horizontal', 'id' => 'formMantenimiento' . $entidad, 'autocomplete' => 'off');
+        $boton    = 'Descongelar';
+        return view($this->folderview . '.descongelar')->with(compact('cliente', 'congelamiento', 'pago', 'dias', 'vencimientoNuevo', 'formData', 'entidad', 'boton', 'listar'));
+    }
+
+    /**
+     * (Administrador) Termina el congelamiento y suma los días congelados al vencimiento del plan
+     */
+    public function descongelarStore($id)
+    {
+        if (!$this->esAdminLogueado()) {
+            return json_encode(array('cliente' => array('No tienes permiso para descongelar planes.')));
+        }
+        $congelamiento = Congelamiento::actual($id);
+        if (!$congelamiento) {
+            return json_encode(array('cliente' => array('El cliente no tiene un plan congelado.')));
+        }
+        $error = DB::transaction(function () use ($congelamiento) {
+            $dias = $this->diasCongelados($congelamiento);
+            $pago = $congelamiento->planpago;
+            if ($pago && $pago->fechavencimiento) {
+                $pago->fechavencimiento = \Carbon\Carbon::parse($pago->fechavencimiento)->addDays($dias)->format('Y-m-d');
+                $pago->save();
+            }
+            $congelamiento->fechafin      = \Carbon\Carbon::today()->format('Y-m-d');
+            $congelamiento->dias          = $dias;
+            $congelamiento->situacion     = 'FINALIZADO';
+            $congelamiento->usuariofin_id = auth()->user()->id;
+            $congelamiento->save();
+        });
+        return is_null($error) ? "OK" : $error;
     }
 
     /** Texto del motivo para el modal: SIN PLAN / SIN CRÉDITOS / PLAN VENCIDO */
@@ -360,13 +565,13 @@ class ClienteController extends Controller
             $person->nombres = strtoupper($request->input('nombres'));
             $person->documento = strtoupper($request->input('documento'));
             $person->direccion = strtoupper($request->input('direccion'));
-            $person->creditos = strtoupper($request->input('creditos')) + 0;
+            $person->creditos = 0;
             $person->fechanacimiento = strtoupper($request->input('fechanacimiento'));
             $person->dniapoderado = strtoupper($request->input('dniapoderado'));
             $person->correo = strtoupper($request->input('correo'));
-            $person->plan_id = strtoupper($request->input('plan_id')) + 0;
+            $person->plan_id = 0;
             $person->celular = strtoupper($request->input('celular'));
-            $person->clases = strtoupper($request->input('clases')) + 0;
+            $person->clases = 0;
             $person->situacion = strtoupper($request->input('situacion'));
             $person->sucursal_id = $request->input('sucursal_id');
             $person->save();
@@ -741,30 +946,37 @@ class ClienteController extends Controller
         }
 
         // El cliente solo puede tener una reserva por día en la misma sede con el mismo instructor
-        $horario = Horario::find($request->input('horario_id'));
-        if (!$horario) {
-            return response()->json(['ok' => false, 'mensaje' => 'El horario no existe.'], 404);
-        }
-        if (!$this->horarioCorreEn($horario, $request->input('fecha'))) {
-            $vigencia = $this->vigenciaTexto($horario);
-            return response()->json(['ok' => false, 'mensaje' => 'Este horario no se dicta el ' . $this->textoDia($request->input('fecha'))
-                . ($vigencia ? ' (' . $vigencia . ')' : '') . ' Elige otro día u horario.']);
-        }
-        if ($this->horarioTermino($horario, $request->input('fecha'))) {
-            return response()->json(['ok' => false, 'mensaje' => 'Este horario ya terminó el ' . $this->textoDia($request->input('fecha')) . '. Elige otro día u horario.']);
-        }
-        // Capacidad de la clase: lugar válido y clase no llena
-        $capacidad = $this->capacidadHorario($horario);
-        if ($capacidad > 0) {
-            if ((int) $request->input('ubicacion') > $capacidad) {
-                return response()->json(['ok' => false, 'mensaje' => 'El lugar N.° ' . $request->input('ubicacion') . ' no existe en esta clase (capacidad ' . $capacidad . ').']);
+        if(auth()->user()->cliente_id!="39"){//USER ESPECIAL
+            $horario = Horario::find($request->input('horario_id'));
+            if (!$horario) {
+                return response()->json(['ok' => false, 'mensaje' => 'El horario no existe.'], 404);
             }
-            $ocupados = Reserva::where('horario_id', '=', $horario->id)
-                ->where('fecha', '=', $request->input('fecha'))
-                ->whereNull('deleted_at')
-                ->count();
-            if ($ocupados >= $capacidad) {
-                return response()->json(['ok' => false, 'mensaje' => 'La clase está llena para ese día. Elige otro horario.']);
+            // Plan congelado o fecha posterior al vencimiento del plan
+            $bloqueo = Congelamiento::bloqueoReserva(Cliente::find(auth()->user()->cliente_id), $request->input('fecha'));
+            if ($bloqueo) {
+                return response()->json(['ok' => false, 'mensaje' => $bloqueo]);
+            }
+            if (!$this->horarioCorreEn($horario, $request->input('fecha'))) {
+                $vigencia = $this->vigenciaTexto($horario);
+                return response()->json(['ok' => false, 'mensaje' => 'Este horario no se dicta el ' . $this->textoDia($request->input('fecha'))
+                    . ($vigencia ? ' (' . $vigencia . ')' : '') . ' Elige otro día u horario.']);
+            }
+            if ($this->horarioTermino($horario, $request->input('fecha'))) {
+                return response()->json(['ok' => false, 'mensaje' => 'Este horario ya terminó el ' . $this->textoDia($request->input('fecha')) . '. Elige otro día u horario.']);
+            }
+            // Capacidad de la clase: lugar válido y clase no llena
+            $capacidad = $this->capacidadHorario($horario);
+            if ($capacidad > 0) {
+                if ((int) $request->input('ubicacion') > $capacidad) {
+                    return response()->json(['ok' => false, 'mensaje' => 'El lugar N.° ' . $request->input('ubicacion') . ' no existe en esta clase (capacidad ' . $capacidad . ').']);
+                }
+                $ocupados = Reserva::where('horario_id', '=', $horario->id)
+                    ->where('fecha', '=', $request->input('fecha'))
+                    ->whereNull('deleted_at')
+                    ->count();
+                if ($ocupados >= $capacidad) {
+                    return response()->json(['ok' => false, 'mensaje' => 'La clase está llena para ese día. Elige otro horario.']);
+                }
             }
         }
         $yaReservo = Reserva::join('horario', 'reserva.horario_id', '=', 'horario.id')
@@ -927,6 +1139,16 @@ class ClienteController extends Controller
             $vigencia = $this->vigenciaTexto($horario);
             return response()->json(['ok' => false, 'mensaje' => 'Este horario no se dicta ningún día del rango elegido'
                 . ($vigencia ? ' (' . $vigencia . ')' : '') . '.']);
+        }
+        // Plan congelado o días posteriores al vencimiento del plan (mismo usuario especial que la reserva de un día)
+        if ($clienteId != "39") {
+            $clienteActual = Cliente::find($clienteId);
+            foreach ($fechas as $fecha) {
+                $bloqueo = Congelamiento::bloqueoReserva($clienteActual, $fecha);
+                if ($bloqueo) {
+                    return response()->json(['ok' => false, 'mensaje' => 'No se pudo reservar el rango: ' . $bloqueo]);
+                }
+            }
         }
         foreach ($fechas as $fecha) {
             $empezo = \Carbon\Carbon::parse($fecha . ' ' . $horario->horainicio)->lte(\Carbon\Carbon::now());
@@ -1246,7 +1468,8 @@ class ClienteController extends Controller
      */
     private function motivoRenovacion($cliente)
     {
-        if (!$cliente->plan) {
+        // Con el plan congelado no se renueva: al descongelar se recuperan los días
+        if (!$cliente->plan || Congelamiento::actual($cliente->id)) {
             return null;
         }
         if ((int) $cliente->creditos < 1) {
@@ -1272,6 +1495,9 @@ class ClienteController extends Controller
         if (!$cliente) {
             abort(403);
         }
+        if (Congelamiento::actual($cliente->id)) {
+            return redirect()->route('cliente.planes')->with('error', 'Tu plan está congelado. No puedes cambiarlo ni renovarlo hasta que se descongele.');
+        }
         $pago = $this->pagoPlanPendiente($cliente->id);
         $plan = $pago ? $pago->plan : Plan::find($planId);
         if (!$plan) {
@@ -1295,6 +1521,9 @@ class ClienteController extends Controller
         $cliente = Cliente::find(auth()->user()->cliente_id);
         if (!$cliente) {
             abort(403);
+        }
+        if (Congelamiento::actual($cliente->id)) {
+            return redirect()->route('cliente.planes')->with('error', 'Tu plan está congelado. No puedes cambiarlo ni renovarlo hasta que se descongele.');
         }
         $plan = Plan::find($planId);
         if (!$plan) {

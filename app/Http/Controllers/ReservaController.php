@@ -87,6 +87,15 @@ class ReservaController extends Controller
         if($clase!=""){
             $resultado->where('clase_id','=',$clase);
         }
+        // Rango de fechas de la reserva: solo "Desde" = desde ese día; solo "Hasta" = hasta ese día
+        $fechaDesde = Libreria::getParam($request->input('fechadesde'));
+        $fechaHasta = Libreria::getParam($request->input('fechahasta'));
+        if ($fechaDesde != "") {
+            $resultado->where(DB::raw('DATE(reserva.fecha)'), '>=', $fechaDesde);
+        }
+        if ($fechaHasta != "") {
+            $resultado->where(DB::raw('DATE(reserva.fecha)'), '<=', $fechaHasta);
+        }
         $lista            = $resultado->select('reserva.*')->get();
         $cabecera         = array();
         $cabecera[]       = array('valor' => '#', 'numero' => '1');
@@ -135,7 +144,9 @@ class ReservaController extends Controller
         $cboInstructor = array('' => '--Todos--') + $this->listaInstructores();
         $cboSucursal = array('' => '--Todos--') + Sucursal::orderBy('nombre','asc')->pluck('nombre','id')->toArray();
         $cboClase = array('' => '--Todos--') + Clase::orderBy('nombre','asc')->pluck('nombre','id')->toArray();
-        $cboHorario = array('' => '--Todos--') + $this->listaHorariosFiltro(null, null, null);
+        // Mismo rango por defecto que el filtro de fechas del listado (hoy a 7 días)
+        $cboHorario = array('' => '--Todos--') + $this->listaHorariosFiltro(null, null, null,
+            \Carbon\Carbon::today()->format('Y-m-d'), \Carbon\Carbon::today()->addDays(7)->format('Y-m-d'));
         return view($this->folderview . '.admin')->with(compact('entidad', 'title', 'titulo_registrar', 'ruta','cboInstructor','cboSucursal','cboClase','cboHorario'));
     }
 
@@ -232,8 +243,19 @@ class ReservaController extends Controller
         if (!$horario) {
             return 'El horario no existe.';
         }
-        if (!Cliente::find($request->input('cliente_id'))) {
+        $cliente = Cliente::find($request->input('cliente_id'));
+        if (!$cliente) {
             return 'El cliente no existe.';
+        }
+        // Plan congelado o fecha posterior al vencimiento del plan. Al editar solo se revisa
+        // si cambia el cliente o la fecha, para poder corregir otros datos de la reserva
+        $actual = $exceptoId ? Reserva::find($exceptoId) : null;
+        if (!$actual || $actual->cliente_id != $cliente->id
+            || \Carbon\Carbon::parse($actual->fecha)->format('Y-m-d') != $fecha) {
+            $bloqueo = \App\Congelamiento::bloqueoReserva($cliente, $fecha);
+            if ($bloqueo) {
+                return $bloqueo;
+            }
         }
         // Día de la semana y rango de vigencia del horario
         if (!$this->horarioCorreEn($horario, $fecha)) {
@@ -566,13 +588,13 @@ class ReservaController extends Controller
      * Horarios DISPONIBLES para el filtro del listado, opcionalmente por sede/instructor/clase.
      * Texto: "08:00 - 09:00 · CLASE · SEDE · SOBRENOMBRE"
      */
-    private function listaHorariosFiltro($sucursalId, $instructorId, $claseId)
+    private function listaHorariosFiltro($sucursalId, $instructorId, $claseId, $desde = null, $hasta = null)
     {
         $consulta = Horario::join('clase', 'horario.clase_id', '=', 'clase.id')
             ->join('sucursal', 'horario.sucursal_id', '=', 'sucursal.id')
             ->leftJoin('instructor', 'horario.instructor_id', '=', 'instructor.id')
             ->where('horario.situacion', '=', 'DISPONIBLE')
-            ->select('horario.id',
+            ->select('horario.id', 'horario.fechainicio', 'horario.fechafin', 'horario.dias',
                 DB::raw("CONCAT(TIME_FORMAT(horario.horainicio, '%H:%i'), ' - ', TIME_FORMAT(horario.horafin, '%H:%i'), ' · ', clase.nombre, ' · ', sucursal.nombre, ' · ', COALESCE(NULLIF(instructor.sobrenombre, ''), instructor.nombres, '')) as texto"))
             ->orderBy('sucursal.nombre', 'asc')
             ->orderBy('clase.nombre', 'asc')
@@ -586,7 +608,44 @@ class ReservaController extends Controller
         if (!empty($claseId)) {
             $consulta->where('horario.clase_id', '=', $claseId);
         }
-        return $consulta->pluck('texto', 'id')->toArray();
+        // Rango de fechas: vigencia que se cruza con el rango (sin fecha = abierto por ese lado)
+        if (!empty($desde)) {
+            $consulta->where(function ($q) use ($desde) {
+                $q->whereNull('horario.fechafin')->orWhere('horario.fechafin', '>=', $desde);
+            });
+        }
+        if (!empty($hasta)) {
+            $consulta->where(function ($q) use ($hasta) {
+                $q->whereNull('horario.fechainicio')->orWhere('horario.fechainicio', '<=', $hasta);
+            });
+        }
+        $horarios = $consulta->get();
+        // Y que se dicte al menos un día del rango (según sus días de la semana)
+        if (!empty($desde) && !empty($hasta)) {
+            $horarios = $horarios->filter(function ($h) use ($desde, $hasta) {
+                return $this->horarioCorreEnRango($h, $desde, $hasta);
+            });
+        }
+        return $horarios->pluck('texto', 'id')->toArray();
+    }
+
+    /** ¿El horario se dicta al menos un día entre $desde y $hasta? (basta revisar 7 días seguidos) */
+    private function horarioCorreEnRango($horario, $desde, $hasta)
+    {
+        $inicio = \Carbon\Carbon::parse($desde);
+        if ($horario->fechainicio && \Carbon\Carbon::parse($horario->fechainicio)->gt($inicio)) {
+            $inicio = \Carbon\Carbon::parse($horario->fechainicio);
+        }
+        $fin = \Carbon\Carbon::parse($hasta);
+        if ($horario->fechafin && \Carbon\Carbon::parse($horario->fechafin)->lt($fin)) {
+            $fin = \Carbon\Carbon::parse($horario->fechafin);
+        }
+        for ($d = $inicio->copy(), $n = 0; $d->lte($fin) && $n < 7; $d->addDay(), $n++) {
+            if ($this->horarioCorreEn($horario, $d->format('Y-m-d'))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -594,7 +653,8 @@ class ReservaController extends Controller
      */
     public function horariosFiltro(Request $request)
     {
-        $lista = $this->listaHorariosFiltro($request->input('sucursal'), $request->input('instructor'), $request->input('clase'));
+        $lista = $this->listaHorariosFiltro($request->input('sucursal'), $request->input('instructor'), $request->input('clase'),
+            $request->input('fechadesde'), $request->input('fechahasta'));
         $data = array();
         foreach ($lista as $id => $texto) {
             $data[] = array('id' => $id, 'texto' => $texto);
