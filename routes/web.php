@@ -131,6 +131,7 @@ Route::group(['middleware' => 'auth'], function () {
 
     /* Clientes */
     Route::post('cliente/buscar', 'ClienteController@buscar')->name('cliente.buscar');
+    Route::get('cliente/excel', 'ClienteController@excel')->name('cliente.excel');
     Route::get('cliente/eliminar/{id}/{listarluego}', 'ClienteController@eliminar')->name('cliente.eliminar');
     Route::get('cliente/reservar',function () {
         return View::make('app.cliente.reservar');

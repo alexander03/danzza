@@ -64,6 +64,7 @@
 							<div class="card-header">
 							  <h3 class="card-title">{{$title}}</h3>
 							  <div class="card-tools">
+								{!! Form::button(' <i class="fa fa-file-excel fa-fw"></i> Excel', array('class' => 'btn btn-outline-success', 'id' => 'btnExcel', 'onclick' => 'excelClientes();')) !!}
 								{!! Form::button(' <i class="fa fa-plus fa-fw"></i> Agregar', array('class' => 'btn  btn-outline-primary', 'id' => 'btnNuevo', 'onclick' => 'modal (\''.URL::route($ruta["create"], array('listar'=>'SI')).'\', \''.$titulo_registrar.'\', this);')) !!}
 							  </div>
 							</div>
@@ -92,6 +93,10 @@
 
   
 <script>
+	// Reporte Excel con los mismos filtros del listado
+	function excelClientes() {
+		window.open('{{ URL::route('cliente.excel') }}?' + $(IDFORMBUSQUEDA + '{{ $entidad }}').serialize(), '_blank');
+	}
 	$(document).ready(function () {
 		buscar('{{ $entidad }}');
 		init(IDFORMBUSQUEDA+'{{ $entidad }}', 'B', '{{ $entidad }}');

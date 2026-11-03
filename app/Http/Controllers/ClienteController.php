@@ -16,6 +16,7 @@ use App\Reserva;
 use App\Reservagrupo;
 use App\Planpago;
 use App\Congelamiento;
+use App\Exports\ClienteExport;
 use App\Configuracion;
 use App\Librerias\Libreria;
 use App\Http\Controllers\Controller;
@@ -70,39 +71,7 @@ class ClienteController extends Controller
         $pagina           = $request->input('page');
         $filas            = $request->input('filas');
         $entidad          = 'Cliente';
-        $nombre             = Libreria::getParam($request->input('nombre'));
-        $plan             = Libreria::getParam($request->input('plan'));
-        $sucursal         = Libreria::getParam($request->input('sucursal'));
-        $situacion         = Libreria::getParam($request->input('situacion'));
-        $resultado        = Cliente::where(function ($sql) use($nombre){
-                                $sql->where(DB::raw('concat(apellidopaterno,\' \',apellidomaterno,\' \',nombres)'), 'LIKE', '%' . strtoupper($nombre) . '%')
-                                    ->orWhere('documento','like','%'.$nombre.'%');
-                                })
-                                ->orderBy('apellidopaterno', 'ASC');
-        if($plan!=""){
-            $resultado = $resultado->where('plan_id','=',$plan);
-        }
-        if($sucursal!=""){
-            $resultado = $resultado->where('sucursal_id','=',$sucursal);
-        }
-        // Pago plan (misma regla que la columna): POR VALIDAR = tiene un pago PENDIENTE;
-        // VALIDADO = no tiene pago PENDIENTE y sí tiene al menos un pago VALIDADO
-        $pagoPlan = Libreria::getParam($request->input('pagoplan'));
-        $existePago = function ($situacionPago) {
-            return function ($q) use ($situacionPago) {
-                $q->select(DB::raw(1))->from('planpago')
-                    ->whereRaw('planpago.cliente_id = cliente.id')
-                    ->where('planpago.situacion', '=', $situacionPago);
-            };
-        };
-        if ($pagoPlan == 'POR VALIDAR') {
-            $resultado = $resultado->whereExists($existePago('PENDIENTE'));
-        } elseif ($pagoPlan == 'VALIDADO') {
-            $resultado = $resultado->whereNotExists($existePago('PENDIENTE'))->whereExists($existePago('VALIDADO'));
-        }
-        if($situacion!=""){
-            $resultado = $resultado->where('situacion','like',$situacion);
-        }
+        $resultado        = $this->consultaClientes($request);
         $lista            = $resultado->get();
         $cabecera         = array();
         $cabecera[]       = array('valor' => '#', 'numero' => '1');
@@ -741,6 +710,51 @@ class ClienteController extends Controller
         $formData = array('route' => array('cliente.destroy', $id), 'method' => 'DELETE', 'class' => 'form-horizontal', 'id' => 'formMantenimiento' . $entidad, 'autocomplete' => 'off');
         $boton    = 'Eliminar';
         return view('app.confirmarEliminar')->with(compact('modelo', 'formData', 'entidad', 'boton', 'listar'));
+    }
+
+    /** Clientes según los filtros de búsqueda (listado y reporte Excel) */
+    private function consultaClientes(Request $request)
+    {
+        $nombre             = Libreria::getParam($request->input('nombre'));
+        $plan             = Libreria::getParam($request->input('plan'));
+        $sucursal         = Libreria::getParam($request->input('sucursal'));
+        $situacion         = Libreria::getParam($request->input('situacion'));
+        $resultado        = Cliente::where(function ($sql) use($nombre){
+                                $sql->where(DB::raw('concat(apellidopaterno,\' \',apellidomaterno,\' \',nombres)'), 'LIKE', '%' . strtoupper($nombre) . '%')
+                                    ->orWhere('documento','like','%'.$nombre.'%');
+                                })
+                                ->orderBy('apellidopaterno', 'ASC');
+        if($plan!=""){
+            $resultado = $resultado->where('plan_id','=',$plan);
+        }
+        if($sucursal!=""){
+            $resultado = $resultado->where('sucursal_id','=',$sucursal);
+        }
+        // Pago plan (misma regla que la columna): POR VALIDAR = tiene un pago PENDIENTE;
+        // VALIDADO = no tiene pago PENDIENTE y sí tiene al menos un pago VALIDADO
+        $pagoPlan = Libreria::getParam($request->input('pagoplan'));
+        $existePago = function ($situacionPago) {
+            return function ($q) use ($situacionPago) {
+                $q->select(DB::raw(1))->from('planpago')
+                    ->whereRaw('planpago.cliente_id = cliente.id')
+                    ->where('planpago.situacion', '=', $situacionPago);
+            };
+        };
+        if ($pagoPlan == 'POR VALIDAR') {
+            $resultado = $resultado->whereExists($existePago('PENDIENTE'));
+        } elseif ($pagoPlan == 'VALIDADO') {
+            $resultado = $resultado->whereNotExists($existePago('PENDIENTE'))->whereExists($existePago('VALIDADO'));
+        }
+        if($situacion!=""){
+            $resultado = $resultado->where('situacion','like',$situacion);
+        }
+        return $resultado;
+    }
+
+    /** Reporte Excel de los clientes del listado (mismos filtros) */
+    public function excel(Request $request)
+    {
+        return Excel::download(new ClienteExport($this->consultaClientes($request)->get()), 'ReporteClientes.xlsx');
     }
 
     public function buscarDNI(Request $request)
