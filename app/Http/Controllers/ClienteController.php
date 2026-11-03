@@ -26,6 +26,9 @@ use File;
 
 class ClienteController extends Controller
 {
+    /** Días que el cliente puede reservar en el modo "Un día", contando hoy */
+    const DIAS_RESERVA = 4;
+
     protected $folderview      = 'app.cliente';
     protected $tituloAdmin     = 'Cliente';
     protected $tituloRegistrar = 'Registrar Cliente';
@@ -354,7 +357,7 @@ class ClienteController extends Controller
         return is_null($error) ? "OK" : $error;
     }
 
-    /** Cancela las reservas del cliente desde esa fecha cuya clase no empezó y devuelve 1 crédito por cada una */
+    /** Cancela las reservas del cliente desde esa fecha cuya clase no empezó y devuelve los créditos que consumieron */
     private function cancelarReservasDesde($clienteId, $fecha)
     {
         $ahora    = \Carbon\Carbon::now();
@@ -363,8 +366,8 @@ class ClienteController extends Controller
             ->where('situacion', '=', 'RESERVADO')
             ->whereNull('deleted_at')
             ->get();
-        $cancelados = 0;
-        $grupos     = array();
+        $devueltos = 0;
+        $grupos    = array();
         foreach ($reservas as $reserva) {
             $horario = Horario::find($reserva->horario_id);
             $inicio  = \Carbon\Carbon::parse(\Carbon\Carbon::parse($reserva->fecha)->format('Y-m-d') . ' ' . $horario->horainicio);
@@ -373,13 +376,13 @@ class ClienteController extends Controller
             }
             $reserva->deleted_at = \Carbon\Carbon::now();
             $reserva->save();
-            $cancelados++;
+            $devueltos += (int) $reserva->creditos;
             if ($reserva->reservagrupo_id) {
                 $grupos[$reserva->reservagrupo_id] = true;
             }
         }
-        if ($cancelados > 0) {
-            Cliente::where('id', '=', $clienteId)->increment('creditos', $cancelados);
+        if ($devueltos > 0) {
+            Cliente::where('id', '=', $clienteId)->increment('creditos', $devueltos);
         }
         // Un rango sin días restantes queda cancelado (mismo criterio que cancelarRango)
         foreach (array_keys($grupos) as $grupoId) {
@@ -797,7 +800,20 @@ class ClienteController extends Controller
         foreach ($data as $h) {
             $h->vigenciaTexto = $this->vigenciaTexto($h);
         }
-        return response()->json($data);
+        return response()->json($this->horariosDelPlan($data));
+    }
+
+    /** Deja solo las clases que permite el plan del cliente e indica los créditos que consume cada una */
+    private function horariosDelPlan($horarios)
+    {
+        $cliente = Cliente::find(auth()->user()->cliente_id);
+        $plan    = ($cliente && $cliente->id != 39) ? $cliente->plan : null; // 39: usuario especial
+        foreach ($horarios as $h) {
+            $h->creditosclase = $plan ? $plan->creditosClase($h->clase_id) : 1;
+        }
+        return $horarios->filter(function ($h) use ($plan) {
+            return !$plan || $plan->permiteClase($h->clase_id);
+        })->values();
     }
 
     /** Capacidad (lugares) del horario: se toma de su clase (clase.capacidad); 0 si no tiene */
@@ -945,8 +961,13 @@ class ClienteController extends Controller
             return response()->json(['ok' => false, 'mensaje' => 'El lugar ya fue tomado, elige otro.']);
         }
 
+        // Créditos que consume la clase según el plan (el usuario especial siempre 1)
+        $creditosClase = 1;
         // El cliente solo puede tener una reserva por día en la misma sede con el mismo instructor
         if(auth()->user()->cliente_id!="39"){//USER ESPECIAL
+            if (\Carbon\Carbon::parse($request->input('fecha'))->startOfDay()->gt(\Carbon\Carbon::today()->addDays(self::DIAS_RESERVA - 1))) {
+                return response()->json(['ok' => false, 'mensaje' => 'Solo puedes reservar hasta ' . self::DIAS_RESERVA . ' días desde hoy.']);
+            }
             $horario = Horario::find($request->input('horario_id'));
             if (!$horario) {
                 return response()->json(['ok' => false, 'mensaje' => 'El horario no existe.'], 404);
@@ -978,6 +999,13 @@ class ClienteController extends Controller
                     return response()->json(['ok' => false, 'mensaje' => 'La clase está llena para ese día. Elige otro horario.']);
                 }
             }
+            // Clases que incluye el plan y máximo de clases del periodo
+            $clienteActual = Cliente::find(auth()->user()->cliente_id);
+            $bloqueoPlan = Plan::bloqueoReserva($clienteActual, $horario, array($request->input('fecha')));
+            if ($bloqueoPlan) {
+                return response()->json(['ok' => false, 'mensaje' => $bloqueoPlan]);
+            }
+            $creditosClase = Plan::creditosReserva($clienteActual, $horario);
         }
         $yaReservo = Reserva::join('horario', 'reserva.horario_id', '=', 'horario.id')
             ->where('reserva.cliente_id', '=', auth()->user()->cliente_id)
@@ -990,15 +1018,19 @@ class ClienteController extends Controller
             return response()->json(['ok' => false, 'mensaje' => 'Ya tienes una reserva para este día en esta sede con el mismo instructor. Solo puedes reservar una vez por día.']);
         }
 
-        // Cada reserva consume 1 crédito del plan
-        if ($this->creditosCliente() < 1) {
+        // Cada reserva consume los créditos de la clase según el plan
+        $disponibles = $this->creditosCliente();
+        if ($disponibles < 1) {
             return response()->json(['ok' => false, 'sinCreditos' => true, 'mensaje' => 'No tienes créditos disponibles. Renueva o cambia tu plan para seguir reservando.']);
+        }
+        if ($disponibles < $creditosClase) {
+            return response()->json(['ok' => false, 'mensaje' => 'Esta clase consume ' . $creditosClase . ' créditos y tienes ' . $disponibles . '.']);
         }
 
         $obj = null;
-        $error = DB::transaction(function () use ($request, &$obj) {
+        $error = DB::transaction(function () use ($request, &$obj, $creditosClase) {
             // Descuento atómico: solo si aún tiene el crédito (evita doble reserva simultánea)
-            if (!$this->descontarCreditos(1)) {
+            if (!$this->descontarCreditos($creditosClase)) {
                 return 'SIN_CREDITOS';
             }
             $obj = new Reserva();
@@ -1008,6 +1040,7 @@ class ClienteController extends Controller
             $obj->horario_id = strtoupper($request->input('horario_id'));
             $obj->sucursal_id = Horario::find($request->input('horario_id'))->sucursal_id; // Obtener la sucursal del horario
             $obj->ubicacion = strtoupper($request->input('ubicacion'));
+            $obj->creditos = $creditosClase;
             $obj->situacion = 'RESERVADO';
             $obj->save();
         });
@@ -1071,9 +1104,9 @@ class ClienteController extends Controller
                 : implode(' · ', array_map(function ($d) use ($abrev) { return $abrev[$d]; }, $diasSemana));
         }
         // Se ocultan los horarios que no se dictan ningún día del rango
-        return $horarios->filter(function ($h) {
+        return $this->horariosDelPlan($horarios->filter(function ($h) {
             return $h->diasEnRango > 0;
-        })->values();
+        })->values());
     }
 
     /** Ej. "Lun 6 de Oct." */
@@ -1141,6 +1174,7 @@ class ClienteController extends Controller
                 . ($vigencia ? ' (' . $vigencia . ')' : '') . '.']);
         }
         // Plan congelado o días posteriores al vencimiento del plan (mismo usuario especial que la reserva de un día)
+        $creditosClase = 1;
         if ($clienteId != "39") {
             $clienteActual = Cliente::find($clienteId);
             foreach ($fechas as $fecha) {
@@ -1149,6 +1183,12 @@ class ClienteController extends Controller
                     return response()->json(['ok' => false, 'mensaje' => 'No se pudo reservar el rango: ' . $bloqueo]);
                 }
             }
+            // Clases que incluye el plan y máximo de clases del periodo
+            $bloqueoPlan = Plan::bloqueoReserva($clienteActual, $horario, $fechas);
+            if ($bloqueoPlan) {
+                return response()->json(['ok' => false, 'mensaje' => 'No se pudo reservar el rango: ' . $bloqueoPlan]);
+            }
+            $creditosClase = Plan::creditosReserva($clienteActual, $horario);
         }
         foreach ($fechas as $fecha) {
             $empezo = \Carbon\Carbon::parse($fecha . ' ' . $horario->horainicio)->lte(\Carbon\Carbon::now());
@@ -1184,16 +1224,16 @@ class ClienteController extends Controller
             return response()->json(['ok' => false, 'mensaje' => 'No se pudo reservar el rango: ' . implode('; ', $fallas) . '.']);
         }
 
-        // Cada día del rango consume 1 crédito
-        $necesarios = count($fechas);
+        // Cada día del rango consume los créditos de la clase según el plan
+        $necesarios = count($fechas) * $creditosClase;
         $disponibles = $this->creditosCliente();
         if ($disponibles < $necesarios) {
             return response()->json(['ok' => false, 'sinCreditos' => true, 'mensaje' => 'Este rango necesita ' . $necesarios . ' créditos y tienes ' . $disponibles . '. Elige menos días o renueva tu plan.']);
         }
 
         $grupo = null;
-        $error = DB::transaction(function () use ($horario, $clienteId, $ubicacion, $fechas, &$grupo) {
-            if (!$this->descontarCreditos(count($fechas))) {
+        $error = DB::transaction(function () use ($horario, $clienteId, $ubicacion, $fechas, $creditosClase, $necesarios, &$grupo) {
+            if (!$this->descontarCreditos($necesarios)) {
                 return 'SIN_CREDITOS';
             }
             $grupo = new Reservagrupo();
@@ -1217,6 +1257,7 @@ class ClienteController extends Controller
                 $obj->horario_id      = $horario->id;
                 $obj->sucursal_id     = $horario->sucursal_id;
                 $obj->ubicacion       = $ubicacion;
+                $obj->creditos        = $creditosClase;
                 $obj->situacion       = 'RESERVADO';
                 $obj->save();
             }
@@ -1294,7 +1335,8 @@ class ClienteController extends Controller
         $horario = Horario::find($grupo->horario_id);
         $limite  = \Carbon\Carbon::now()->addMinutes(40);
         $cancelados = 0;
-        DB::transaction(function () use ($grupo, $horario, $limite, &$cancelados) {
+        $devueltos  = 0;
+        DB::transaction(function () use ($grupo, $horario, $limite, &$cancelados, &$devueltos) {
             $reservas = Reserva::where('reservagrupo_id', '=', $grupo->id)->whereNull('deleted_at')->get();
             foreach ($reservas as $reserva) {
                 $inicio = \Carbon\Carbon::parse(\Carbon\Carbon::parse($reserva->fecha)->format('Y-m-d') . ' ' . $horario->horainicio);
@@ -1302,10 +1344,11 @@ class ClienteController extends Controller
                     $reserva->deleted_at = \Carbon\Carbon::now();
                     $reserva->save();
                     $cancelados++;
+                    $devueltos += (int) $reserva->creditos;
                 }
             }
-            // Se devuelve 1 crédito por cada día cancelado a tiempo
-            $this->devolverCreditos($cancelados);
+            // Se devuelven los créditos que consumió cada día cancelado a tiempo
+            $this->devolverCreditos($devueltos);
             // Si ya no queda ningún día, el rango completo queda cancelado
             if (!Reserva::where('reservagrupo_id', '=', $grupo->id)->whereNull('deleted_at')->exists()) {
                 $grupo->situacion  = 'CANCELADO';
@@ -1318,7 +1361,7 @@ class ClienteController extends Controller
             return response()->json(['ok' => false, 'mensaje' => 'No queda ningún día del rango que se pueda cancelar (hasta 40 minutos antes de cada clase).']);
         }
 
-        return response()->json(['ok' => true, 'mensaje' => 'Se cancelaron ' . $cancelados . ' ' . ($cancelados == 1 ? 'día' : 'días') . ' del rango y se devolvieron ' . $cancelados . ' ' . ($cancelados == 1 ? 'crédito' : 'créditos') . '.']);
+        return response()->json(['ok' => true, 'mensaje' => 'Se cancelaron ' . $cancelados . ' ' . ($cancelados == 1 ? 'día' : 'días') . ' del rango y se devolvieron ' . $devueltos . ' ' . ($devueltos == 1 ? 'crédito' : 'créditos') . '.']);
     }
 
     private function reservaDelCliente($id)
@@ -1411,11 +1454,12 @@ class ClienteController extends Controller
         DB::transaction(function () use ($reserva) {
             $reserva->deleted_at = \Carbon\Carbon::now();
             $reserva->save();
-            // Cancelada a tiempo: se devuelve el crédito
-            $this->devolverCreditos(1);
+            // Cancelada a tiempo: se devuelven los créditos que consumió
+            $this->devolverCreditos((int) $reserva->creditos);
         });
 
-        return response()->json(['ok' => true, 'mensaje' => 'Reserva cancelada. Se devolvió 1 crédito.']);
+        $devueltos = (int) $reserva->creditos;
+        return response()->json(['ok' => true, 'mensaje' => 'Reserva cancelada. Se ' . ($devueltos == 1 ? 'devolvió 1 crédito' : 'devolvieron ' . $devueltos . ' créditos') . '.']);
     }
 
     /**
@@ -1656,8 +1700,9 @@ class ClienteController extends Controller
                 if ($plan && !is_null($plan->creditos)) {
                     $cliente->clases = $cliente->clases + $plan->creditos;
                 }
+                // Los créditos no utilizados no pasan al siguiente periodo
                 if ($plan && !is_null($plan->creditos)) {
-                    $cliente->creditos = $cliente->creditos + $plan->creditos;
+                    $cliente->creditos = $plan->creditos;
                 }
                 $cliente->save();
             } else {

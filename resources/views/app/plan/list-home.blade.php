@@ -186,6 +186,13 @@
         }
 
         /* El nombre del plan ya es verde lima: el "recomendado" va en blanco y más pequeño */
+        /* Cantidad de clases: lo primero que se lee del plan */
+        .plan-card li.plan-clases {
+            color: var(--primary);
+            font-size: 19px;
+            font-weight: 800;
+        }
+
         .plan-card .plan-recomendado {
             color: #ffffff;
             font-size: 14px;
@@ -739,14 +746,14 @@
                     <div class="precio">S/ {{ number_format($plan['precio'], 2) }}</div>
                 @endif
                 <ul>
-                    @if (!empty($plan['descripcion']))
-                        <li>{{ $plan['descripcion'] }}</li>
-                    @endif
                     @if (!is_null($plan['creditos']))
-                        <li>{{ $plan['creditos'] }} clases</li>
+                        <li class="plan-clases">{{ $plan['creditos'] }} clases</li>
                     @endif
                     @if (!empty($plan['vigencia']))
                         <li>Vigencia: {{ $plan['vigencia'] }} días</li>
+                    @endif
+                    @if (!empty($plan['descripcion']))
+                        <li>{{ $plan['descripcion'] }}</li>
                     @endif
                     @if (!empty($plan['nota']))
                         <li>{{ $plan['nota'] }}</li>

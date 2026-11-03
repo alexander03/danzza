@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\DB;
 
 class PlanController extends Controller
 {
+    protected $periodosLimite = array('MES' => 'Mes calendario', '30DIAS' => 'Cada 30 días desde el inicio del plan');
+
     protected $folderview      = 'app.plan';
     protected $tituloAdmin     = 'Plan';
     protected $tituloRegistrar = 'Registrar Plan';
@@ -99,6 +101,17 @@ class PlanController extends Controller
         return view($this->folderview.'.admin')->with(compact('entidad', 'title', 'titulo_registrar', 'ruta', 'cboClase'));
     }
 
+    /** Restricciones del plan: clases que incluye y clase con costo y máximo propios */
+    private function asignarRestricciones($Plan, Request $request)
+    {
+        $clases = $request->input('clasespermitidas');
+        $Plan->clasespermitidas = $clases ? implode(',', $clases) : null;
+        $Plan->claselimite_id = $request->input('claselimite_id');
+        $Plan->creditosclaselimite = $request->input('creditosclaselimite');
+        $Plan->limiteclases = $request->input('limiteclases');
+        $Plan->periodolimite = $request->input('claselimite_id') ? $request->input('periodolimite') : null;
+    }
+
     /**
      * Show the form for creating a new resource.
      *
@@ -114,7 +127,10 @@ class PlanController extends Controller
         $boton        = 'Registrar'; 
         $cboSituacion = array('ACTIVO' => 'ACTIVO', 'INACTIVO' => 'INACTIVO','OCULTO'=>'OCULTO');
         $cboClase = array('' => '--Seleccione--') + Clase::pluck('nombre', 'id')->all();
-        return view($this->folderview.'.mant')->with(compact('plan', 'formData', 'entidad', 'boton', 'listar','cboSituacion','cboClase'));
+        $cboClases = Clase::pluck('nombre', 'id')->all();
+        $cboClaseLimite = array('' => '--Ninguna--') + $cboClases;
+        $cboPeriodo = $this->periodosLimite;
+        return view($this->folderview.'.mant')->with(compact('cboClases', 'cboClaseLimite', 'cboPeriodo', 'plan', 'formData', 'entidad', 'boton', 'listar','cboSituacion','cboClase'));
     }
 
     /**
@@ -130,7 +146,9 @@ class PlanController extends Controller
             array(
                 'nombre' => 'required',
                 'descripcion' => 'required|max:6000',
-                'precio' => 'required'
+                'precio' => 'required',
+                'creditosclaselimite' => 'nullable|integer|min:1',
+                'limiteclases' => 'nullable|integer|min:1'
                 )
             );
         if ($validacion->fails()) {
@@ -151,6 +169,7 @@ class PlanController extends Controller
             $Plan->beneficios = $request->input('beneficios');
             $Plan->clase_id = $request->input('clase_id');
             $Plan->orden = $request->input('orden');
+            $this->asignarRestricciones($Plan, $request);
             $Plan->save();
         });
         return is_null($error) ? "OK" : $error;
@@ -187,7 +206,10 @@ class PlanController extends Controller
         $boton        = 'Modificar';
         $cboSituacion = array('ACTIVO' => 'ACTIVO', 'INACTIVO' => 'INACTIVO','OCULTO'=>'OCULTO');
         $cboClase = array('' => '--Seleccione--') + Clase::pluck('nombre', 'id')->all();
-        return view($this->folderview.'.mant')->with(compact('plan', 'formData', 'entidad', 'boton', 'listar', 'cboSituacion','cboClase'));
+        $cboClases = Clase::pluck('nombre', 'id')->all();
+        $cboClaseLimite = array('' => '--Ninguna--') + $cboClases;
+        $cboPeriodo = $this->periodosLimite;
+        return view($this->folderview.'.mant')->with(compact('cboClases', 'cboClaseLimite', 'cboPeriodo', 'plan', 'formData', 'entidad', 'boton', 'listar', 'cboSituacion','cboClase'));
     }
 
     /**
@@ -207,7 +229,9 @@ class PlanController extends Controller
             array(
                 'nombre' => 'required',
                 'descripcion' => 'required|max:6000',
-                'precio' => 'required'
+                'precio' => 'required',
+                'creditosclaselimite' => 'nullable|integer|min:1',
+                'limiteclases' => 'nullable|integer|min:1'
                 )
             );
         if ($validacion->fails()) {
@@ -228,6 +252,7 @@ class PlanController extends Controller
             $Plan->beneficios = $request->input('beneficios');
             $Plan->clase_id = $request->input('clase_id');
             $Plan->orden = $request->input('orden');
+            $this->asignarRestricciones($Plan, $request);
             $Plan->save();
 
         });

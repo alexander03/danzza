@@ -5,7 +5,7 @@
 | Variables que envía el controlador (ClienteController@reservas):
 |   $proximas   array de reservas futuras (la más cercana primero)
 |   $historial  array de reservas pasadas (la más reciente primero)
-|   $creditos   créditos disponibles del cliente (cada reserva consume 1)
+|   $creditos   créditos disponibles del cliente (cada reserva consume los de su clase)
 |   Cada item: id, codigo, fecha, ubicacion, situacion,
 |              horainicio, horafin, sede, instructor (sobrenombre), cancelable (bool)
 |   (Las reservas no generan pago: se paga al activar/cambiar el plan)

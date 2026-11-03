@@ -34,7 +34,7 @@
     $user                  = Auth::user();
     $cliente  = Cliente::find($user->cliente_id);
     $planActivo = $cliente->plan;
-    // Cada reserva consume 1 crédito (en un rango, 1 por día)
+    // Cada reserva consume los créditos de su clase según el plan (en un rango, por cada día)
     $creditos = (int) $cliente->creditos;
     // Sin plan activo o sin créditos solo puede ver sedes y horarios (pasos 1 y 2), no elegir lugar
     // Igual con el plan congelado o vencido (el usuario especial 39 no tiene esta restricción)
@@ -51,7 +51,7 @@
     $meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Set', 'Oct', 'Nov', 'Dic'];
 
     $proximosDias = [];
-    for ($i = 0; $i < 7; $i++) {
+    for ($i = 0; $i < \App\Http\Controllers\ClienteController::DIAS_RESERVA; $i++) {
         $f = \Carbon\Carbon::today()->addDays($i);
         $proximosDias[] = [
             'fecha'  => $f->format('Y-m-d'),
@@ -636,7 +636,7 @@ $(function () {
         dias: 1
     };
 
-    // Créditos disponibles (cada día reservado consume 1)
+    // Créditos disponibles (cada día reservado consume los de su clase)
     var creditos = {{ (int) $creditos }};
 
     var DIAS  = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -800,10 +800,15 @@ $(function () {
                                 window.location.href = urls.planes;
                                 return;
                             }
+                            reserva.creditosClase = h.creditosclase || 1;
+                            if (!rango && reserva.creditosClase > creditos) {
+                                toastr.warning('Esta clase consume ' + reserva.creditosClase + ' créditos y tienes ' + creditos + '.');
+                                return;
+                            }
                             if (rango) {
-                                // Cada día en que se dicta el horario consume 1 crédito
-                                if (h.diasEnRango > creditos) {
-                                    toastr.warning('Este horario tiene ' + h.diasEnRango + ' clases en el rango y tienes ' + creditos + ' créditos. Elige menos días.');
+                                // Cada día en que se dicta el horario consume los créditos de la clase
+                                if (h.diasEnRango * reserva.creditosClase > creditos) {
+                                    toastr.warning('Este horario necesita ' + (h.diasEnRango * reserva.creditosClase) + ' créditos en el rango y tienes ' + creditos + '. Elige menos días.');
                                     return;
                                 }
                                 reserva.dias = h.diasEnRango;
@@ -885,7 +890,7 @@ $(function () {
         $('#rHorario').text(reserva.hora);
         $('#rInstructor').text(reserva.instructor || '-');
         $('#rLugar').text('Lugar N.° ' + reserva.lugar);
-        var usados = reserva.modo === 'rango' ? reserva.dias : 1;
+        var usados = (reserva.modo === 'rango' ? reserva.dias : 1) * reserva.creditosClase;
         $('#rCreditos').text('Se ' + (usados === 1 ? 'descontará 1 clase' : 'descontarán ' + usados + ' clases')
             + ' · te quedarán ' + (creditos - usados));
         irAPaso(4);

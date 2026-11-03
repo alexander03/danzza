@@ -5,7 +5,8 @@ cd /var/www/html
 
 # .env de pruebas: se crea a partir de .env.example si no existe
 if [ ! -f .env ]; then
-    cp .env.example .env
+    # Sin CR: en Windows .env.example puede venir con CRLF y APP_KEY= pareceria tener valor
+    tr -d '\r' < .env.example > .env
 fi
 
 # APP_KEY y JWT_SECRET: se generan solo si no vienen por variable de entorno ni en el .env

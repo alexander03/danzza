@@ -14,3 +14,4 @@ yarn-error.log
 # Dumps de la base de datos (contienen datos reales)
 *.sql
 !/database/migrations/mercadito.sql
+!/database/sql/*.sql

@@ -106,6 +106,46 @@
 				</div>
 			</div>
 		</div>
+		<div class="col-md-12 col-lg-12">
+			<div class="form-group">
+				{!! Form::label('clasespermitidas', 'Clases que incluye (sin selección = todas):', array('class' => 'col-lg-12 col-md-12 col-sm-12 control-label')) !!}
+				<div class="col-lg-12 col-md-12 col-sm-12">
+					{!! Form::select('clasespermitidas[]', $cboClases, ($plan ? $plan->clasesPermitidas() : null) ?: array(), array('class' => 'form-control input-xs', 'id' => 'clasespermitidas', 'multiple' => 'multiple', 'size' => '4')) !!}
+				</div>
+			</div>
+		</div>
+		<div class="col-md-6 col-lg-6">
+			<div class="form-group">
+				{!! Form::label('claselimite_id', 'Clase con límite:', array('class' => 'col-lg-12 col-md-12 col-sm-12 control-label')) !!}
+				<div class="col-lg-12 col-md-12 col-sm-12">
+					{!! Form::select('claselimite_id', $cboClaseLimite, null, array('class' => 'form-control input-xs', 'id' => 'claselimite_id')) !!}
+				</div>
+			</div>
+		</div>
+		<div class="col-md-6 col-lg-6">
+			<div class="form-group">
+				{!! Form::label('creditosclaselimite', 'Créditos por esa clase:', array('class' => 'col-lg-12 col-md-12 col-sm-12 control-label')) !!}
+				<div class="col-lg-12 col-md-12 col-sm-12">
+					{!! Form::number('creditosclaselimite', null, array('class' => 'form-control input-xs', 'id' => 'creditosclaselimite', 'placeholder' => '1', 'step' => '1', 'min' => '1')) !!}
+				</div>
+			</div>
+		</div>
+		<div class="col-md-6 col-lg-6">
+			<div class="form-group">
+				{!! Form::label('limiteclases', 'Máximo de esa clase:', array('class' => 'col-lg-12 col-md-12 col-sm-12 control-label')) !!}
+				<div class="col-lg-12 col-md-12 col-sm-12">
+					{!! Form::number('limiteclases', null, array('class' => 'form-control input-xs', 'id' => 'limiteclases', 'placeholder' => 'Sin máximo', 'step' => '1', 'min' => '1')) !!}
+				</div>
+			</div>
+		</div>
+		<div class="col-md-6 col-lg-6">
+			<div class="form-group">
+				{!! Form::label('periodolimite', 'Periodo del máximo:', array('class' => 'col-lg-12 col-md-12 col-sm-12 control-label')) !!}
+				<div class="col-lg-12 col-md-12 col-sm-12">
+					{!! Form::select('periodolimite', $cboPeriodo, null, array('class' => 'form-control input-xs', 'id' => 'periodolimite')) !!}
+				</div>
+			</div>
+		</div>
 	</div>
 	<div class="form-group">
 		<div class="col-lg-12 col-md-12 col-sm-12 text-right">
