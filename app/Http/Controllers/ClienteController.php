@@ -818,20 +818,25 @@ class ClienteController extends Controller
         foreach ($data as $h) {
             $h->vigenciaTexto = $this->vigenciaTexto($h);
         }
-        return response()->json($this->horariosDelPlan($data));
+        return response()->json($this->horariosDelPlan($data, $fecha));
     }
 
-    /** Deja solo las clases que permite el plan del cliente e indica los créditos que consume cada una */
-    private function horariosDelPlan($horarios)
+    /**
+     * Indica los créditos que consume cada horario y, si el plan del cliente no permite reservarlo
+     * (clase no incluida o máximo del periodo), el motivo en "mensajePlan". Se muestran todos los horarios.
+     * $fecha = día elegido; en un rango se usan las fechas de cada horario (fechasReserva).
+     */
+    private function horariosDelPlan($horarios, $fecha = null)
     {
         $cliente = Cliente::find(auth()->user()->cliente_id);
         $plan    = ($cliente && $cliente->id != 39) ? $cliente->plan : null; // 39: usuario especial
         foreach ($horarios as $h) {
             $h->creditosclase = $plan ? $plan->creditosClase($h->clase_id) : 1;
+            $fechas = isset($h->fechasReserva) ? $h->fechasReserva : array($fecha);
+            $h->mensajePlan = $plan ? Plan::bloqueoReserva($cliente, $h, array_filter($fechas)) : null;
+            unset($h->fechasReserva);
         }
-        return $horarios->filter(function ($h) use ($plan) {
-            return !$plan || $plan->permiteClase($h->clase_id);
-        })->values();
+        return $horarios;
     }
 
     /** Capacidad (lugares) del horario: se toma de su clase (clase.capacidad); 0 si no tiene */
@@ -1114,6 +1119,7 @@ class ClienteController extends Controller
             $h->ocupacion = $h->capacidad - $h->ocupados;
             // Días del rango en que se dicta (solo esos se reservan y consumen crédito)
             $fechas = $this->fechasDelHorario($h, $desde, $hasta);
+            $h->fechasReserva = $fechas;
             $h->diasEnRango  = count($fechas);
             $h->fechasRango  = array_map(function ($f) { return $this->textoDia($f); }, $fechas);
             $diasSemana = $this->diasHorario($h);

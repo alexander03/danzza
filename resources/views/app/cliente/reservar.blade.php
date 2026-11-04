@@ -136,6 +136,8 @@
     }
 
     .opcion .estado.lleno { color: var(--ocupado); }
+    /* Horario que el plan del cliente no permite reservar */
+    .opcion small.mensaje-plan { color: #fbbf24; }
 
     /* boton visible dentro de cada horario para indicar que se puede elegir */
     .opcion .btn-elegir {
@@ -784,8 +786,12 @@ $(function () {
                         // Rango de fechas en que el horario está vigente
                         //.append(h.vigenciaTexto ? $('<small></small>').text(h.vigenciaTexto) : '')
                         .append(h.clase_nombre ? $('<small></small>').text(h.clase_nombre) : '')
+                        // El plan no permite este horario (clase no incluida o máximo alcanzado): solo se avisa
+                        .append(h.mensajePlan && libres > 0 && puedeReservar ? $('<small class="mensaje-plan"></small>').text(h.mensajePlan) : '')
                         .append($('<span class="btn-elegir"></span>').html(libres <= 0
                             ? 'Sin lugares disponibles'
+                            : (puedeReservar && h.mensajePlan)
+                            ? 'No disponible en tu plan <i class="fa-solid fa-ban"></i>'
                             : (puedeReservar
                                 ? 'Elegir horario <i class="fa-solid fa-arrow-right"></i>'
                                 : $('<div>').text(textoSinPlan).html() + ' <i class="fa-solid fa-bolt"></i>')))
@@ -798,6 +804,10 @@ $(function () {
                             }
                             if (!puedeReservar) {
                                 window.location.href = urls.planes;
+                                return;
+                            }
+                            if (h.mensajePlan) {
+                                toastr.warning(h.mensajePlan);
                                 return;
                             }
                             reserva.creditosClase = h.creditosclase || 1;
