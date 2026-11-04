@@ -249,10 +249,12 @@ class ClienteController extends Controller
         $hoy      = \Carbon\Carbon::today()->format('Y-m-d');
         $error    = $this->errorCongelar($cliente, $hoy);
         $pago     = Congelamiento::pagoVigente($cliente);
+        // Se puede congelar desde días anteriores, hasta el inicio del plan
+        $minFecha = ($pago && $pago->fechainicio) ? \Carbon\Carbon::parse($pago->fechainicio)->format('Y-m-d') : $hoy;
         $entidad  = 'Cliente';
         $formData = array('route' => array('cliente.congelar.store', $cliente->id), 'method' => 'POST', 'class' => 'form-horizontal', 'id' => 'formMantenimiento' . $entidad, 'autocomplete' => 'off');
         $boton    = 'Congelar';
-        return view($this->folderview . '.congelar')->with(compact('cliente', 'pago', 'error', 'hoy', 'formData', 'entidad', 'boton', 'listar'));
+        return view($this->folderview . '.congelar')->with(compact('cliente', 'pago', 'error', 'hoy', 'minFecha', 'formData', 'entidad', 'boton', 'listar'));
     }
 
     /** Motivo por el que no se puede congelar el plan desde esa fecha, o null si se puede */
@@ -271,6 +273,9 @@ class ClienteController extends Controller
         if (!$pago) {
             return 'El plan del cliente no tiene un pago validado.';
         }
+        if ($pago->fechainicio && $fecha < \Carbon\Carbon::parse($pago->fechainicio)->format('Y-m-d')) {
+            return 'La fecha no puede ser anterior al inicio del plan (' . \Carbon\Carbon::parse($pago->fechainicio)->format('d/m/Y') . ').';
+        }
         if ($pago->fechavencimiento && \Carbon\Carbon::parse($pago->fechavencimiento)->format('Y-m-d') < $fecha) {
             return 'El plan del cliente venció el ' . \Carbon\Carbon::parse($pago->fechavencimiento)->format('d/m/Y') . '.';
         }
@@ -278,8 +283,9 @@ class ClienteController extends Controller
     }
 
     /**
-     * (Administrador) Congela el plan: cancela las reservas desde la fecha de inicio cuya clase aún
-     * no empezó y devuelve sus créditos. El congelamiento sigue hasta que se presione "Descongelar".
+     * (Administrador) Congela el plan desde una fecha (puede ser anterior a hoy, hasta el inicio del plan):
+     * cancela las reservas desde esa fecha sin ingreso validado y devuelve sus créditos.
+     * El congelamiento sigue hasta que se presione "Descongelar".
      */
     public function congelarStore(Request $request, $id)
     {
@@ -291,13 +297,12 @@ class ClienteController extends Controller
             return json_encode(array('cliente' => array('El cliente no existe.')));
         }
         $reglas = array(
-            'fechainicio' => 'required|date_format:Y-m-d|after_or_equal:today',
+            'fechainicio' => 'required|date_format:Y-m-d',
             'motivo'      => 'nullable|max:200',
         );
         $mensajes = array(
             'fechainicio.required'       => 'Debe ingresar la fecha de inicio',
             'fechainicio.date_format'    => 'La fecha de inicio no es válida',
-            'fechainicio.after_or_equal' => 'La fecha de inicio no puede ser anterior a hoy',
             'motivo.max'                 => 'El motivo es demasiado largo',
         );
         $validacion = Validator::make($request->all(), $reglas, $mensajes);
@@ -326,23 +331,22 @@ class ClienteController extends Controller
         return is_null($error) ? "OK" : $error;
     }
 
-    /** Cancela las reservas del cliente desde esa fecha cuya clase no empezó y devuelve los créditos que consumieron */
+    /**
+     * Cancela las reservas del cliente desde esa fecha (incluidas las de días pasados) y devuelve los créditos
+     * que consumieron. Las de ingreso validado (asistió) no se tocan.
+     */
     private function cancelarReservasDesde($clienteId, $fecha)
     {
-        $ahora    = \Carbon\Carbon::now();
         $reservas = Reserva::where('cliente_id', '=', $clienteId)
             ->where('fecha', '>=', $fecha)
-            ->where('situacion', '=', 'RESERVADO')
+            ->where(function ($q) {
+                $q->whereNull('asistencia')->orWhere('asistencia', '<>', 'INGRESO VALIDADO');
+            })
             ->whereNull('deleted_at')
             ->get();
         $devueltos = 0;
         $grupos    = array();
         foreach ($reservas as $reserva) {
-            $horario = Horario::find($reserva->horario_id);
-            $inicio  = \Carbon\Carbon::parse(\Carbon\Carbon::parse($reserva->fecha)->format('Y-m-d') . ' ' . $horario->horainicio);
-            if ($reserva->asistencia == 'INGRESO VALIDADO' || $inicio->lte($ahora)) {
-                continue;
-            }
             $reserva->deleted_at = \Carbon\Carbon::now();
             $reserva->save();
             $devueltos += (int) $reserva->creditos;

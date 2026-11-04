@@ -1,6 +1,7 @@
 <?php
 // Variables que envía ClienteController@congelar:
 //   $cliente, $pago (pago vigente o null), $error (motivo por el que no se puede congelar o null), $hoy,
+//   $minFecha (inicio del plan: se puede congelar desde días anteriores),
 //   $formData, $entidad, $boton, $listar
 ?>
 <div id="divMensajeError{!! $entidad !!}"></div>
@@ -23,7 +24,7 @@
 				<div class="form-group">
 					{!! Form::label('fechainicio', 'Congelar desde:', array('class' => 'col-lg-12 col-md-12 col-sm-12 control-label')) !!}
 					<div class="col-lg-12 col-md-12 col-sm-12">
-						{!! Form::date('fechainicio', $hoy, array('class' => 'form-control input-xs', 'id' => 'fechainicio', 'min' => $hoy)) !!}
+						{!! Form::date('fechainicio', $hoy, array('class' => 'form-control input-xs', 'id' => 'fechainicio', 'min' => $minFecha)) !!}
 					</div>
 				</div>
 			</div>
@@ -37,7 +38,9 @@
 			</div>
 			<div class="col-md-12">
 				<div class="alert alert-info py-2">
-					El cliente no podrá reservar desde esa fecha. Sus reservas desde esa fecha se cancelarán y se devolverán los créditos.
+					Puedes elegir un día anterior a hoy (desde el inicio del plan, {{ \Carbon\Carbon::parse($minFecha)->format('d/m/Y') }}).
+					El cliente no podrá reservar desde esa fecha. Sus reservas desde esa fecha, incluidas las de días pasados,
+					se cancelarán y se devolverán los créditos, salvo las que tengan el ingreso validado.
 					El plan seguirá congelado hasta que presiones <b>"Descongelar"</b>; entonces los días congelados se sumarán a su vencimiento.
 				</div>
 			</div>
