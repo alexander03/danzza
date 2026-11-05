@@ -313,7 +313,7 @@ class ApiServicesController extends Controller
                     $rolpersona->rol_id = $roles[$c];
                     $rolpersona->save();
                 }
-                $exists = User::where("login","=",$request->input('email'))->limit(1)->get();
+                $exists = User::withTrashed()->where("login","=",$request->input('email'))->limit(1)->get();
                 if(count($exists)>0){
                     throw new \Exception("Ya existe un usuario con el mismo correo.");
                 }

@@ -589,7 +589,8 @@ class ClienteController extends Controller
             $validator->errors()->add('correo', 'El correo ya está registrado');
         }
         $login = trim($request->input('usuario'));
-        if ($validarUsuario && $login != '' && User::where('login', $login)->exists()) {
+        // withTrashed: el login de un usuario eliminado sigue ocupado (índice único en user.login)
+        if ($validarUsuario && $login != '' && User::withTrashed()->where('login', $login)->exists()) {
             $validator->errors()->add('usuario', 'El usuario ya está registrado');
         }
     }
@@ -696,6 +697,8 @@ class ClienteController extends Controller
         $error = DB::transaction(function () use ($id) {
             $person = Cliente::find($id);
             $person->delete();
+            // Sus usuarios también se eliminan (deleted_at): ya no pueden iniciar sesión
+            User::where('cliente_id', '=', $id)->delete();
         });
         return is_null($error) ? "OK" : $error;
     }

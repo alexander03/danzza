@@ -6,11 +6,13 @@ use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
 class User extends Authenticatable implements JWTSubject
 {
-    use Notifiable;
+    // Eliminado = deleted_at: ya no puede iniciar sesión, pero su login sigue ocupado (índice único)
+    use Notifiable, SoftDeletes;
 
     protected $table = 'user';
     /**
