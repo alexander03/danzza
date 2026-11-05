@@ -39,6 +39,18 @@
 								{!! Form::text('nombre', '', array('class' => 'form-control ', 'id' => 'nombre')) !!}
 							</div>
 							<div class="col-lg-2 col-md-2  form-group">
+								{!! Form::label('dni', 'DNI') !!}
+								{!! Form::text('dni', '', array('class' => 'form-control ', 'id' => 'dni')) !!}
+							</div>
+							<div class="col-lg-3 col-md-3  form-group">
+								{!! Form::label('correo', 'Correo') !!}
+								{!! Form::text('correo', '', array('class' => 'form-control ', 'id' => 'correo')) !!}
+							</div>
+							<div class="col-lg-2 col-md-2  form-group">
+								{!! Form::label('telefono', 'Teléfono') !!}
+								{!! Form::text('telefono', '', array('class' => 'form-control ', 'id' => 'telefono')) !!}
+							</div>
+							<div class="col-lg-2 col-md-2  form-group">
 								{!! Form::label('plan', 'Plan') !!}
 								{!! Form::select('plan',$cboPlan, '', array('class' => 'form-control ', 'id' => 'plan', 'onchange' => 'buscar(\''.$entidad.'\')')) !!}
 							</div>
@@ -100,7 +112,7 @@
 	$(document).ready(function () {
 		buscar('{{ $entidad }}');
 		init(IDFORMBUSQUEDA+'{{ $entidad }}', 'B', '{{ $entidad }}');
-		$(IDFORMBUSQUEDA + '{{ $entidad }} :input[id="nombre"]').keyup(function (e) {
+		$(IDFORMBUSQUEDA + '{{ $entidad }} :input[id="nombre"], ' + IDFORMBUSQUEDA + '{{ $entidad }} :input[id="dni"], ' + IDFORMBUSQUEDA + '{{ $entidad }} :input[id="correo"], ' + IDFORMBUSQUEDA + '{{ $entidad }} :input[id="telefono"]').keyup(function (e) {
 			var key = window.event ? e.keyCode : e.which;
 			if (key == '13') {
 				buscar('{{ $entidad }}');

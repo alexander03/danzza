@@ -752,6 +752,14 @@ class ClienteController extends Controller
         if($situacion!=""){
             $resultado = $resultado->where('situacion','like',$situacion);
         }
+        // DNI, correo y teléfono: coincidencia parcial, como el nombre
+        $filtrosTexto = array('dni' => 'documento', 'correo' => 'correo', 'telefono' => 'celular');
+        foreach ($filtrosTexto as $parametro => $columna) {
+            $valor = Libreria::getParam($request->input($parametro));
+            if (!is_null($valor)) {
+                $resultado = $resultado->where($columna, 'like', '%' . trim($valor) . '%');
+            }
+        }
         return $resultado;
     }
 
