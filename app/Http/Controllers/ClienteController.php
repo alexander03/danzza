@@ -576,8 +576,9 @@ class ClienteController extends Controller
     /**
      * Valida que documento, correo y usuario no estén registrados por otro cliente.
      * Documento y correo se guardan en mayúsculas, por eso se comparan así.
+     * Los clientes eliminados no cuentan. También la usa el registro público (WebServicesController).
      */
-    private function validarUnicos($validator, Request $request, $clienteId = null, $validarUsuario = false)
+    public function validarUnicos($validator, Request $request, $clienteId = null, $validarUsuario = false)
     {
         $documento = strtoupper(trim($request->input('documento')));
         if ($documento != '' && Cliente::where('documento', $documento)->where('id', '<>', (int) $clienteId)->exists()) {

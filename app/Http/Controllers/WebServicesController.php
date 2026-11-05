@@ -227,6 +227,10 @@ class WebServicesController extends Controller
             'fechanacimiento.required'         => 'Debe ingresar una fecha de nacimiento'
         );
         $validacion = Validator::make($request->all(), $reglas, $mensajes);
+        // Documento, correo y usuario únicos: misma validación que el registro del administrador
+        $validacion->after(function ($validator) use ($request) {
+            app(\App\Http\Controllers\ClienteController::class)->validarUnicos($validator, $request, null, true);
+        });
         if ($validacion->fails()) {
             return $validacion->messages()->toJson();
         }
