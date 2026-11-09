@@ -305,7 +305,7 @@
   </div>
   <div class="direccion">
     <i class="fa-solid fa-location-dot"></i>
-    Ca. Ollantay Mz. H Lt. 38 La Victoria – Chiclayo (A una cuadra del Paseo Yortuque)<br />
+    Ca. Ollantay Mz. H Lt. 38 La Victoria – Chiclayo (A una cuadra de la Av. La libertad)<br />
     Correo: danzzaclub@icloud.com <br />
     Teléfono: 944 199 037
   </div>
