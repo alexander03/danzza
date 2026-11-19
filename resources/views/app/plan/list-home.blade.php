@@ -6,7 +6,6 @@
         'Las cancelaciones fuera de plazo o inasistencias se contabilizarán como clase utilizada.',
         'Las clases no utilizadas no son acumulables ni transferibles.',
         'La vigencia inicia desde la activación del plan.',
-        'El Plan Diario permite una reserva por día.',
         'Los horarios pueden estar sujetos a cambios por motivos operativos.',
         'Al participar en las actividades de Danzza, autorizas el uso de fotografías y videos en los que aparezcas para fines promocionales y de comunicación de la marca.',
         'La adquisición de un plan implica la aceptación de estos términos y condiciones.',
