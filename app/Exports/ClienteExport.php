@@ -72,6 +72,10 @@ class ClienteExport implements FromCollection, WithHeadings, WithMapping, WithCo
         if ($congelado) {
             $situacion .= ' - CONGELADO desde ' . Carbon::parse($congelado->fechainicio)->format('d/m/Y');
         }
+        $estadoPlan = $cliente->estadoPlan();
+        if ($estadoPlan) {
+            $situacion .= ' - ' . $estadoPlan;
+        }
 
         // Reservas no canceladas desde el inicio del último pago validado
         $reservadas = null;

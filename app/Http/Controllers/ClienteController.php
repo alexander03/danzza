@@ -136,7 +136,9 @@ class ClienteController extends Controller
         $ruta             = $this->rutas;
         $cboPlan = array('' => '--Todos--') + Plan::orderBy('nombre','asc')->pluck('nombre','id')->toArray();
         $cboSucursal = array('' => '--Todos--') + Sucursal::orderBy('nombre','asc')->pluck('nombre','id')->toArray();
-        $cboSituacion = array('' => '--Todos--','ACTIVO'=>'ACTIVO','BLOQUEADO'=>'BLOQUEADO');
+        // ACTIVO/BLOQUEADO se guardan en el cliente; los estados del plan se calculan solos
+        $cboSituacion = array('' => '--Todos--','ACTIVO'=>'ACTIVO','BLOQUEADO'=>'BLOQUEADO')
+            + array_combine(Cliente::ESTADOS_PLAN, Cliente::ESTADOS_PLAN);
         return view($this->folderview . '.admin')->with(compact('entidad', 'title', 'titulo_registrar', 'ruta','cboPlan','cboSucursal','cboSituacion'));
     }
 
@@ -753,7 +755,9 @@ class ClienteController extends Controller
         } elseif ($pagoPlan == 'VALIDADO') {
             $resultado = $resultado->whereNotExists($existePago('PENDIENTE'))->whereExists($existePago('VALIDADO'));
         }
-        if($situacion!=""){
+        if (in_array($situacion, Cliente::ESTADOS_PLAN)) {
+            $resultado = $resultado->estadoPlan($situacion);
+        } elseif($situacion!=""){
             $resultado = $resultado->where('situacion','like',$situacion);
         }
         // DNI, correo y teléfono: coincidencia parcial, como el nombre

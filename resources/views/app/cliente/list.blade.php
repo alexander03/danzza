@@ -35,6 +35,10 @@
 					<br><span class="badge badge-info">CONGELADO</span>
 					<br><small>Desde {{ \Carbon\Carbon::parse($congelado->fechainicio)->format('d/m/Y') }}</small>
 				@endif
+				<?php $estadoPlan = $value->estadoPlan(); ?>
+				@if($estadoPlan)
+					<br><span class="badge {{ array('SIN PLAN' => 'badge-secondary', 'PLAN VENCIDO' => 'badge-danger', 'SIN CLASES' => 'badge-warning')[$estadoPlan] }}">{{ $estadoPlan }}</span>
+				@endif
 			</td>
 			<!--td>{{ optional($value->sucursal)->nombre ?? '-' }}</td-->
 			<?php
