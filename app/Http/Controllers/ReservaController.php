@@ -13,6 +13,7 @@ use App\Sucursal;
 use App\Clase;
 use App\Cliente;
 use App\Plan;
+use App\Movimientocredito;
 use App\Librerias\Libreria;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
@@ -193,7 +194,9 @@ class ReservaController extends Controller
         $error = DB::transaction(function () use ($request, $horario) {
             // Cada reserva consume los créditos de la clase según el plan (descuento atómico)
             $creditos = Plan::creditosReserva(Cliente::find($request->input('cliente_id')), $horario);
-            if (!$this->descontarCredito($request->input('cliente_id'), $creditos)) {
+            $mov = $this->descontarCredito($request->input('cliente_id'), $creditos,
+                'Reserva del ' . \Carbon\Carbon::parse($request->input('fecha'))->format('d/m/Y') . ' (panel)');
+            if (!$mov) {
                 return json_encode(array('reserva' => array('El cliente no tiene créditos suficientes (esta clase consume ' . $creditos . ').')));
             }
             $obj = new Reserva();
@@ -206,6 +209,8 @@ class ReservaController extends Controller
             $obj->creditos = $creditos;
             $obj->situacion = 'RESERVADO';
             $obj->save();
+            $mov->reserva_id = $obj->id;
+            $mov->save();
         });
         return is_null($error) ? "OK" : $error;
     }
@@ -307,18 +312,16 @@ class ReservaController extends Controller
         return null;
     }
 
-    /** Descuenta créditos al cliente solo si los tiene (true si se descontaron) */
-    private function descontarCredito($clienteId, $cantidad)
+    /** Descuenta créditos al cliente solo si los tiene; devuelve el movimiento registrado o null */
+    private function descontarCredito($clienteId, $cantidad, $detalle, $reservaId = null)
     {
-        return Cliente::where('id', '=', $clienteId)
-            ->where('creditos', '>=', $cantidad)
-            ->decrement('creditos', $cantidad) > 0;
+        return Movimientocredito::descontar($clienteId, $cantidad, 'RESERVA', $detalle, $reservaId);
     }
 
-    /** Devuelve créditos al cliente */
-    private function devolverCredito($clienteId, $cantidad)
+    /** Devuelve créditos al cliente y lo registra */
+    private function devolverCredito($clienteId, $cantidad, $detalle, $reservaId = null)
     {
-        Cliente::where('id', '=', $clienteId)->increment('creditos', $cantidad);
+        Movimientocredito::devolver($clienteId, $cantidad, 'CANCELACION', $detalle, $reservaId);
     }
 
     /** Capacidad del horario: se toma de su clase (clase.capacidad); 0 si no tiene */
@@ -409,17 +412,18 @@ class ReservaController extends Controller
             if ($obj->cliente_id != $request->input('cliente_id') || $obj->horario_id != $horario->id) {
                 $creditos = Plan::creditosReserva(Cliente::find($request->input('cliente_id')), $horario);
             }
+            $texto = 'reserva del ' . \Carbon\Carbon::parse($request->input('fecha'))->format('d/m/Y') . ' (panel)';
             if ($obj->cliente_id != $request->input('cliente_id')) {
-                if (!$this->descontarCredito($request->input('cliente_id'), $creditos)) {
+                if (!$this->descontarCredito($request->input('cliente_id'), $creditos, 'Se le asignó la ' . $texto, $obj->id)) {
                     return json_encode(array('reserva' => array('El nuevo cliente no tiene créditos suficientes (esta clase consume ' . $creditos . ').')));
                 }
-                $this->devolverCredito($obj->cliente_id, (int) $obj->creditos);
+                $this->devolverCredito($obj->cliente_id, (int) $obj->creditos, 'Se pasó a otro cliente la ' . $texto, $obj->id);
             } elseif ($creditos > $obj->creditos) {
-                if (!$this->descontarCredito($obj->cliente_id, $creditos - $obj->creditos)) {
+                if (!$this->descontarCredito($obj->cliente_id, $creditos - $obj->creditos, 'Cambio de horario de la ' . $texto, $obj->id)) {
                     return json_encode(array('reserva' => array('El cliente no tiene créditos suficientes (esta clase consume ' . $creditos . ').')));
                 }
             } elseif ($creditos < $obj->creditos) {
-                $this->devolverCredito($obj->cliente_id, $obj->creditos - $creditos);
+                $this->devolverCredito($obj->cliente_id, $obj->creditos - $creditos, 'Cambio de horario de la ' . $texto, $obj->id);
             }
             // El código, el estado, la asistencia y la validación del instructor no se cambian aquí
             $obj->fecha = $request->input('fecha');
@@ -448,7 +452,8 @@ class ReservaController extends Controller
         $error = DB::transaction(function () use ($id) {
             $person = Reserva::find($id);
             // Eliminar desde el panel siempre devuelve al cliente los créditos que consumió
-            $this->devolverCredito($person->cliente_id, (int) $person->creditos);
+            $this->devolverCredito($person->cliente_id, (int) $person->creditos,
+                'Reserva del ' . \Carbon\Carbon::parse($person->fecha)->format('d/m/Y') . ' eliminada (panel)', $person->id);
             $person->delete();
         });
         return is_null($error) ? "OK" : $error;

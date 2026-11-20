@@ -16,6 +16,7 @@ use App\Reserva;
 use App\Reservagrupo;
 use App\Planpago;
 use App\Congelamiento;
+use App\Movimientocredito;
 use App\Exports\ClienteExport;
 use App\Configuracion;
 use App\Librerias\Libreria;
@@ -46,6 +47,7 @@ class ClienteController extends Controller
         'asignarplan' => 'cliente.asignarplan',
         'congelar'    => 'cliente.congelar',
         'descongelar' => 'cliente.descongelar',
+        'historial'   => 'cliente.historial',
     );
     protected $tituloAsignarPlan = 'Asignar Plan';
 
@@ -88,7 +90,7 @@ class ClienteController extends Controller
         $cabecera[]       = array('valor' => 'Situacion', 'numero' => '1');
         //$cabecera[]       = array('valor' => 'Sede', 'numero' => '1');
         $cabecera[]       = array('valor' => 'Pago plan', 'numero' => '1');
-        $cabecera[]       = array('valor' => 'Operaciones', 'numero' => '4');
+        $cabecera[]       = array('valor' => 'Operaciones', 'numero' => '5');
 
         $titulo_modificar = $this->tituloModificar;
         $titulo_eliminar  = $this->tituloEliminar;
@@ -356,9 +358,8 @@ class ClienteController extends Controller
                 $grupos[$reserva->reservagrupo_id] = true;
             }
         }
-        if ($devueltos > 0) {
-            Cliente::where('id', '=', $clienteId)->increment('creditos', $devueltos);
-        }
+        Movimientocredito::devolver($clienteId, $devueltos, 'CONGELAMIENTO',
+            'Reservas canceladas al congelar desde el ' . \Carbon\Carbon::parse($fecha)->format('d/m/Y'));
         // Un rango sin días restantes queda cancelado (mismo criterio que cancelarRango)
         foreach (array_keys($grupos) as $grupoId) {
             if (!Reserva::where('reservagrupo_id', '=', $grupoId)->whereNull('deleted_at')->exists()) {
@@ -665,6 +666,7 @@ class ClienteController extends Controller
         }
         $error = DB::transaction(function () use ($request, $id) {
             $person = Cliente::find($id);
+            $saldoAntes = (int) $person->creditos;
             $person->apellidopaterno = strtoupper($request->input('apellidopaterno'));
             $person->apellidomaterno = strtoupper($request->input('apellidomaterno'));
             $person->nombres = strtoupper($request->input('nombres'));
@@ -680,6 +682,8 @@ class ClienteController extends Controller
             $person->situacion = strtoupper($request->input('situacion'));
             $person->sucursal_id = $request->input('sucursal_id');
             $person->save();
+            // Cambio manual del saldo: queda en el historial con el usuario que lo hizo
+            Movimientocredito::registrar($person->id, $saldoAntes, $person->creditos, 'AJUSTE', 'Edición manual del cliente');
         });
         return is_null($error) ? "OK" : $error;
     }
@@ -769,6 +773,72 @@ class ClienteController extends Controller
             }
         }
         return $resultado;
+    }
+
+    /**
+     * Historial del cliente: planes comprados, reservas por periodo de plan (con lo usado y lo que queda)
+     * y los movimientos de créditos registrados. Sirve para responder reclamos de saldo.
+     */
+    public function historial($id)
+    {
+        $cliente = Cliente::withTrashed()->find($id);
+        if (!$cliente) {
+            return 'El cliente no existe.';
+        }
+        $pagos = Planpago::where('cliente_id', '=', $id)->orderBy('id', 'asc')->get();
+        $reservas = Reserva::withTrashed()
+            ->leftJoin('horario', 'horario.id', '=', 'reserva.horario_id')
+            ->leftJoin('clase', 'clase.id', '=', 'horario.clase_id')
+            ->where('reserva.cliente_id', '=', $id)
+            ->select('reserva.*', 'clase.nombre as clase_nombre', 'horario.horainicio')
+            ->orderBy('reserva.created_at', 'asc')
+            ->get();
+        $movimientos = Movimientocredito::where('cliente_id', '=', $id)->orderBy('id', 'asc')->get();
+
+        // Cada pago validado abre un periodo: desde que se validó hasta que se valida el siguiente.
+        // La reserva cuenta en el periodo en que se hizo (ahí se descontaron sus créditos).
+        $validados = $pagos->where('situacion', 'VALIDADO')->values();
+        $periodos  = array();
+        foreach ($validados as $i => $pago) {
+            $mov   = $movimientos->first(function ($m) use ($pago) { return $m->tipo == 'PLAN' && $m->planpago_id == $pago->id; });
+            $desde = $this->inicioPeriodo($pago, $mov);
+            $sig   = isset($validados[$i + 1]) ? $validados[$i + 1] : null;
+            $hasta = $sig ? $this->inicioPeriodo($sig, $movimientos->first(function ($m) use ($sig) { return $m->tipo == 'PLAN' && $m->planpago_id == $sig->id; })) : null;
+            $enPeriodo = function ($fecha) use ($desde, $hasta) {
+                return $fecha && $fecha->gte($desde) && (!$hasta || $fecha->lt($hasta));
+            };
+            $delPeriodo = $reservas->filter(function ($r) use ($enPeriodo) { return $enPeriodo($r->created_at); })->values();
+            $usados     = (int) $delPeriodo->whereNull('deleted_at')->sum('creditos');
+            $ajustes    = (int) $movimientos->filter(function ($m) use ($enPeriodo) { return $m->tipo == 'AJUSTE' && $enPeriodo($m->created_at); })->sum('cantidad');
+            $plan       = Plan::withTrashed()->find($pago->plan_id);
+            // Con el registro de movimientos se conoce el saldo exacto al validar; antes de él se estima con los créditos del plan
+            $inicial    = $mov ? (int) $mov->saldonuevo : (int) optional($plan)->creditos;
+            $periodos[] = array(
+                'pago'     => $pago,
+                'plan'     => $plan,
+                'desde'    => $desde,
+                'hasta'    => $hasta,
+                'exacto'   => (bool) $mov,
+                'inicial'  => $inicial,
+                'usados'   => $usados,
+                'ajustes'  => $ajustes,
+                'quedan'   => $inicial - $usados + $ajustes,
+                'reservas' => $delPeriodo,
+            );
+        }
+        $primero = count($periodos) ? $periodos[0]['desde'] : null;
+        $sinPlan = $reservas->filter(function ($r) use ($primero) { return !$primero || ($r->created_at && $r->created_at->lt($primero)); })->values();
+        $periodos = array_reverse($periodos);
+        return view($this->folderview . '.historial')->with(compact('cliente', 'pagos', 'periodos', 'sinPlan', 'movimientos'));
+    }
+
+    /** Momento en que empezó el periodo de un pago: cuando se registró su movimiento, o el día de inicio del plan */
+    private function inicioPeriodo($pago, $mov)
+    {
+        if ($mov) {
+            return $mov->created_at;
+        }
+        return $pago->fechainicio ? \Carbon\Carbon::parse($pago->fechainicio)->startOfDay() : $pago->created_at;
     }
 
     /** Reporte Excel de los clientes del listado (mismos filtros) */
@@ -1069,7 +1139,8 @@ class ClienteController extends Controller
         $obj = null;
         $error = DB::transaction(function () use ($request, &$obj, $creditosClase) {
             // Descuento atómico: solo si aún tiene el crédito (evita doble reserva simultánea)
-            if (!$this->descontarCreditos($creditosClase)) {
+            $mov = $this->descontarCreditos($creditosClase, 'Reserva del ' . \Carbon\Carbon::parse($request->input('fecha'))->format('d/m/Y'));
+            if (!$mov) {
                 return 'SIN_CREDITOS';
             }
             $obj = new Reserva();
@@ -1082,6 +1153,8 @@ class ClienteController extends Controller
             $obj->creditos = $creditosClase;
             $obj->situacion = 'RESERVADO';
             $obj->save();
+            $mov->reserva_id = $obj->id;
+            $mov->save();
         });
 
         if ($error === 'SIN_CREDITOS') {
@@ -1273,7 +1346,9 @@ class ClienteController extends Controller
 
         $grupo = null;
         $error = DB::transaction(function () use ($horario, $clienteId, $ubicacion, $fechas, $creditosClase, $necesarios, &$grupo) {
-            if (!$this->descontarCreditos($necesarios)) {
+            $mov = $this->descontarCreditos($necesarios, 'Reserva por rango: ' . count($fechas) . (count($fechas) == 1 ? ' día' : ' días')
+                . ' del ' . \Carbon\Carbon::parse($fechas[0])->format('d/m/Y') . ' al ' . \Carbon\Carbon::parse($fechas[count($fechas) - 1])->format('d/m/Y'));
+            if (!$mov) {
                 return 'SIN_CREDITOS';
             }
             $grupo = new Reservagrupo();
@@ -1338,20 +1413,16 @@ class ClienteController extends Controller
         return $cliente ? (int) $cliente->creditos : 0;
     }
 
-    /** Descuenta créditos solo si alcanzan (true si se descontó) */
-    private function descontarCreditos($cantidad)
+    /** Descuenta créditos al cliente autenticado solo si alcanzan; devuelve el movimiento o null */
+    private function descontarCreditos($cantidad, $detalle)
     {
-        return Cliente::where('id', '=', auth()->user()->cliente_id)
-            ->where('creditos', '>=', $cantidad)
-            ->decrement('creditos', $cantidad) > 0;
+        return Movimientocredito::descontar(auth()->user()->cliente_id, $cantidad, 'RESERVA', $detalle);
     }
 
-    /** Devuelve créditos al cancelar a tiempo */
-    private function devolverCreditos($cantidad)
+    /** Devuelve créditos al cliente autenticado al cancelar a tiempo */
+    private function devolverCreditos($cantidad, $detalle, $reservaId = null)
     {
-        if ($cantidad > 0) {
-            Cliente::where('id', '=', auth()->user()->cliente_id)->increment('creditos', $cantidad);
-        }
+        Movimientocredito::devolver(auth()->user()->cliente_id, $cantidad, 'CANCELACION', $detalle, $reservaId);
     }
 
     private function grupoDelCliente($id)
@@ -1388,7 +1459,7 @@ class ClienteController extends Controller
                 }
             }
             // Se devuelven los créditos que consumió cada día cancelado a tiempo
-            $this->devolverCreditos($devueltos);
+            $this->devolverCreditos($devueltos, 'Cancelación de ' . $cancelados . ($cancelados == 1 ? ' día' : ' días') . ' del rango ' . $grupo->codigo);
             // Si ya no queda ningún día, el rango completo queda cancelado
             if (!Reserva::where('reservagrupo_id', '=', $grupo->id)->whereNull('deleted_at')->exists()) {
                 $grupo->situacion  = 'CANCELADO';
@@ -1495,7 +1566,7 @@ class ClienteController extends Controller
             $reserva->deleted_at = \Carbon\Carbon::now();
             $reserva->save();
             // Cancelada a tiempo: se devuelven los créditos que consumió
-            $this->devolverCreditos((int) $reserva->creditos);
+            $this->devolverCreditos((int) $reserva->creditos, 'Cancelación de la reserva del ' . \Carbon\Carbon::parse($reserva->fecha)->format('d/m/Y'), $reserva->id);
         });
 
         $devueltos = (int) $reserva->creditos;
@@ -1735,16 +1806,23 @@ class ClienteController extends Controller
                     ? \Carbon\Carbon::today()->addDays((int) $plan->vigencia)->format('Y-m-d')
                     : null;
 
-                $cliente = Cliente::find($pago->cliente_id);
+                $cliente    = Cliente::find($pago->cliente_id);
+                $saldoAntes = (int) $cliente->creditos;
+                // ¿El plan actual sigue vigente? (último pago validado de su plan y sin vencer; este pago aún está PENDIENTE)
+                $anterior = $cliente->plan ? Congelamiento::pagoVigente($cliente) : null;
+                $vigente  = $anterior && (!$anterior->fechavencimiento
+                    || \Carbon\Carbon::parse($anterior->fechavencimiento)->gte(\Carbon\Carbon::today()));
                 $cliente->plan_id = $pago->plan_id;
+                // Plan vigente: los créditos del nuevo plan se suman a los que le quedan.
+                // Plan vencido o sin plan: se toman los del nuevo plan (lo no usado no pasa al siguiente periodo)
                 if ($plan && !is_null($plan->creditos)) {
-                    $cliente->clases = $cliente->clases + $plan->creditos;
-                }
-                // Los créditos no utilizados no pasan al siguiente periodo
-                if ($plan && !is_null($plan->creditos)) {
-                    $cliente->creditos = $plan->creditos;
+                    $cliente->clases   = $vigente ? (int) $cliente->clases + $plan->creditos : $plan->creditos;
+                    $cliente->creditos = $vigente ? $saldoAntes + $plan->creditos : $plan->creditos;
                 }
                 $cliente->save();
+                Movimientocredito::registrar($cliente->id, $saldoAntes, $cliente->creditos, 'PLAN',
+                    'Plan ' . optional($plan)->nombre . ($vigente ? ': se suma al saldo (plan anterior vigente)' : ': reemplaza el saldo (plan anterior vencido o sin plan)'),
+                    array('planpago_id' => $pago->id));
             } else {
                 $pago->situacion = 'RECHAZADO';
             }

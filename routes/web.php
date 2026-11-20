@@ -159,6 +159,8 @@ Route::group(['middleware' => 'auth'], function () {
     Route::post('cliente/congelar/{id}', 'ClienteController@congelarStore')->name('cliente.congelar.store');
     Route::get('cliente/descongelar/{id}/{listarluego}', 'ClienteController@descongelar')->name('cliente.descongelar');
     Route::post('cliente/descongelar/{id}', 'ClienteController@descongelarStore')->name('cliente.descongelar.store');
+    /* Historial del cliente: planes, reservas y movimientos de créditos */
+    Route::get('cliente/historial/{id}', 'ClienteController@historial')->name('cliente.historial');
     Route::get('cliente/perfil', 'ClienteController@perfil')->name('cliente.perfil');
     Route::post('cliente/perfil', 'ClienteController@perfilStore')->name('cliente.perfil.store');
     Route::post('cliente/perfil/password', 'ClienteController@perfilPassword')->name('cliente.perfil.password');
