@@ -29,7 +29,7 @@
             --bg: #050607;
             --card: rgba(10, 12, 13, .78);
             --border: rgba(223, 255, 0, .35);
-            --text: #ffffff;
+            --text: #000000;
             --muted: #a7a7a7;
             --light: #f1f0ed;
         }
@@ -171,7 +171,7 @@
 
             letter-spacing: 4px;
 
-            color: white;
+            color: black;
 
             line-height: 1;
 
@@ -193,7 +193,7 @@
 
             letter-spacing: 5px;
 
-            color: #ddd;
+            color: #333;
 
             text-transform: uppercase;
 
@@ -233,7 +233,7 @@
 
         .welcome p {
 
-            color: white;
+            color: black;
 
             font-size: 16px;
 
@@ -580,7 +580,7 @@
 
             margin: 35px 10px 25px;
 
-            color: white;
+            color: black;
 
             font-size: 17px;
 
@@ -596,7 +596,7 @@
             height: 1px;
 
             background:
-                rgba(255,255,255,.18);
+                rgba(0,0,0,.18);
 
         }
 
@@ -690,7 +690,7 @@
             font-weight: bold;
             border-right:
                 1px solid
-                rgba(255,255,255,.20);
+                rgba(0,0,0,.20);
 
         }
 
@@ -735,14 +735,14 @@
             gap: 12px;
             margin-top: 30px;
             margin-bottom: 20px;
-            color: white;
+            color: black;
             font-size: 14px;
 
         }
 
 
         .system-description i {
-            color: white;
+            color: black;
             font-size: 22px;
         }
 
