@@ -96,30 +96,6 @@
 
         /*
         |--------------------------------------------------------------------------
-        | Capa oscura SOLO para facilitar lectura del login
-        |--------------------------------------------------------------------------
-        */
-
-        .login-container::before {
-            content: "";
-
-            position: absolute;
-            inset: 0;
-
-            background: linear-gradient(
-                90deg,
-                rgba(0, 0, 0, .65) 0%,
-                rgba(0, 0, 0, .35) 38%,
-                rgba(0, 0, 0, .05) 65%,
-                rgba(0, 0, 0, .05) 100%
-            );
-
-            pointer-events: none;
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
         | LOGIN A LA IZQUIERDA
         |--------------------------------------------------------------------------
         */
@@ -804,17 +780,6 @@
             .login-container {
 
                 background-position: 65% center;
-
-            }
-
-            .login-container::before {
-
-                background:
-                    linear-gradient(
-                        90deg,
-                        rgba(0,0,0,.88),
-                        rgba(0,0,0,.70)
-                    );
 
             }
 
